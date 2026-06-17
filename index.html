@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simulador de Perfuração Horizontal Direcional - HDD</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <h1>SIMULADOR DE PERFURAÇÃO <span>HORIZONTAL DIRECIONAL — HDD</span></h1>
+      <p>Treinamento realístico. Operação segura. Alta performance.</p>
+    </div>
+    <div class="status">
+      <div id="mode-badge" class="badge">
+        <small>MODO DE OPERAÇÃO</small>
+        <strong id="mode-text">PERFURAÇÃO</strong>
+      </div>
+      <div id="time-badge" class="badge">
+        <small>TEMPO</small>
+        <strong id="time-text">00:00:00</strong>
+      </div>
+      <div id="gamepad-badge" class="badge gp-off">
+        <small>CONTROLE</small>
+        <strong id="gamepad-text">DESCONECTADO</strong>
+      </div>
+    </div>
+  </header>
+
+  <main class="grid">
+    <!-- Painel de instrumentos -->
+    <section class="panel instruments">
+      <h2>PAINEL DE INSTRUMENTOS</h2>
+      <div class="gauges">
+        <canvas class="gauge" data-key="pressao"  data-label="PRESSÃO"     data-unit="bar"   data-max="300" width="180" height="180"></canvas>
+        <canvas class="gauge" data-key="torque"   data-label="TORQUE"      data-unit="kN·m"  data-max="100" width="180" height="180"></canvas>
+        <canvas class="gauge" data-key="rotacao"  data-label="VELOCIDADE"  data-unit="rpm"   data-max="120" width="180" height="180"></canvas>
+        <canvas class="gauge" data-key="fluido"   data-label="FLUIDO"      data-unit="l/min" data-max="400" width="180" height="180"></canvas>
+        <canvas class="gauge" data-key="forca"    data-label="FORÇA"       data-unit="kN"    data-max="200" width="180" height="180"></canvas>
+      </div>
+      <div class="alerts" id="alerts"></div>
+    </section>
+
+    <!-- Visão do furo (perfil) -->
+    <section class="panel borepath">
+      <h2>PAINEL DE NAVEGAÇÃO — PERFIL DO FURO</h2>
+      <canvas id="bore-canvas" width="900" height="420"></canvas>
+      <div class="nav-readout">
+        <div><small>INCLINAÇÃO</small><strong id="nav-incl">0.0 %</strong></div>
+        <div><small>AZIMUTE</small><strong id="nav-azim">0.0°</strong></div>
+        <div><small>PROFUNDIDADE</small><strong id="nav-depth">0.0 m</strong></div>
+        <div><small>DISTÂNCIA</small><strong id="nav-dist">0.0 m</strong></div>
+        <div><small>BARRA</small><strong id="nav-bar">0.00 m</strong></div>
+      </div>
+    </section>
+
+    <!-- Controles -->
+    <section class="panel controls">
+      <h2>CONTROLES SIMULADOS</h2>
+      <div class="control-row">
+        <span class="ctl-label">ROTAÇÃO</span>
+        <div class="bar"><div class="fill" id="bar-rotacao"></div></div>
+      </div>
+      <div class="control-row">
+        <span class="ctl-label">EMPUXO / PUXO</span>
+        <div class="bar center"><div class="fill mid" id="bar-empuxo"></div></div>
+      </div>
+      <div class="control-row">
+        <span class="ctl-label">FLUXO DE FLUIDO</span>
+        <div class="bar"><div class="fill" id="bar-fluxo"></div></div>
+      </div>
+      <div class="control-row">
+        <span class="ctl-label">DIREÇÃO (AZIMUTE)</span>
+        <div class="bar center"><div class="fill mid" id="bar-direcao"></div></div>
+      </div>
+
+      <div class="toggles">
+        <div class="toggle" id="tg-grampo"><span>GRAMPO</span><em>FECHADO</em></div>
+        <div class="toggle" id="tg-modo"><span>MODO</span><em>PERFURAÇÃO</em></div>
+        <div class="toggle estop" id="tg-estop"><span>PARADA</span><em>OK</em></div>
+      </div>
+
+      <div class="mapping">
+        <h3>MAPEAMENTO DO CONTROLE</h3>
+        <ul>
+          <li><b>Analógico Esq. (Y):</b> Empuxo / Puxo</li>
+          <li><b>Analógico Dir. (X):</b> Direção / Azimute</li>
+          <li><b>Gatilho R2 (RT):</b> Fluxo de fluido</li>
+          <li><b>Gatilho L2 (LT):</b> Rotação da coluna</li>
+          <li><b>Botão A / ✕:</b> Abrir/fechar grampo</li>
+          <li><b>Botão B / ◯:</b> Trocar modo</li>
+          <li><b>Botão START:</b> Parada de emergência</li>
+        </ul>
+        <p class="hint" id="kb-hint">Sem controle? Use o teclado: <kbd>W</kbd>/<kbd>S</kbd> empuxo,
+          <kbd>A</kbd>/<kbd>D</kbd> direção, <kbd>↑</kbd>/<kbd>↓</kbd> fluido,
+          <kbd>Q</kbd>/<kbd>E</kbd> rotação, <kbd>G</kbd> grampo, <kbd>Espaço</kbd> parada.</p>
+      </div>
+    </section>
+
+    <!-- Relatório -->
+    <section class="panel report">
+      <h2>RELATÓRIO DE DESEMPENHO</h2>
+      <div class="score-wrap">
+        <div class="score-ring" id="score-ring"><span id="score-num">100</span></div>
+        <small>DESEMPENHO GERAL</small>
+      </div>
+      <ul class="report-list" id="report-list"></ul>
+    </section>
+  </main>
+
+  <script src="js/gamepad.js"></script>
+  <script src="js/gauges.js"></script>
+  <script src="js/sim.js"></script>
+</body>
+</html>
