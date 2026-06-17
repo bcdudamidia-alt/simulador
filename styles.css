@@ -121,6 +121,127 @@ body {
 .bar.center { display: flex; justify-content: center; }
 .bar.center .fill.mid { position: absolute; left: 50%; width: 0%; background: var(--accent); }
 
+/* ---------- Barra de conexão de controle ---------- */
+.gamepad-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.connect-btn {
+  background: var(--accent-2);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.connect-btn:hover { filter: brightness(1.1); }
+#connect-status { font-size: 12px; color: var(--muted); }
+#connect-status.ok { color: var(--green); }
+#connect-status.warn { color: var(--accent); }
+
+/* ---------- Controles na tela ---------- */
+.control-deck {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.joy-wrap { text-align: center; }
+.joystick {
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 40%, #1c2837, #0c1019);
+  border: 2px solid var(--line);
+  position: relative;
+  cursor: grab;
+  touch-action: none;
+  margin: 0 auto;
+}
+.joystick.active { cursor: grabbing; border-color: var(--accent-2); }
+.joystick .knob {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #f7b94d, #c97e15);
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+}
+.joy-label { display: block; font-size: 11px; letter-spacing: 1px; color: var(--text); margin-top: 8px; }
+.joy-wrap small { color: var(--muted); font-size: 10px; }
+
+.center-controls { flex: 1; min-width: 200px; }
+.slider-ctl { margin-bottom: 12px; }
+.slider-ctl label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.slider-ctl label b { color: var(--green); }
+.slider-ctl input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--panel-2);
+  outline: none;
+  cursor: pointer;
+}
+.slider-ctl input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent-2);
+  cursor: pointer;
+}
+.slider-ctl input[type="range"]::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent-2);
+  cursor: pointer;
+}
+
+.op-buttons { display: flex; gap: 8px; }
+.op-btn {
+  flex: 1;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 10px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  cursor: pointer;
+}
+.op-btn:hover { border-color: var(--accent); }
+.op-btn:active { transform: translateY(1px); }
+.op-btn.danger { background: rgba(239,68,68,0.15); border-color: var(--red); color: #fca5a5; }
+
+.readouts { margin-bottom: 6px; }
+
 .toggles { display: flex; gap: 10px; margin: 16px 0; }
 .toggle {
   flex: 1;

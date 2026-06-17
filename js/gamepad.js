@@ -1,27 +1,34 @@
 /*
- * gamepad.js
- * Lê o controle físico (joystick/gamepad USB) usando a Gamepad API do navegador
- * e também aceita o teclado como alternativa quando não há controle conectado.
+ * gamepad.js — gerenciador de entrada
+ * Unifica três fontes de comando, com a seguinte prioridade:
+ *   1. Controle físico (Gamepad API), se conectado
+ *   2. Teclado + controles na tela (mouse/toque), combinados
  *
- * Expõe um objeto global `Input` com o estado normalizado dos comandos:
- *   thrust   : -1 (puxo total) .. +1 (empuxo total)
- *   steer    : -1 (esquerda)    .. +1 (direita)
- *   flow     :  0 .. 1   (fluxo de fluido)
- *   rotation :  0 .. 1   (rotação da coluna)
- *   clamp    : bool      (grampo fechado)
- *   modeBtn  : bool edge (trocar modo)
- *   estop    : bool      (parada de emergência ativada)
- *   connected: bool      (controle físico detectado)
+ * Expõe o objeto global `Input`:
+ *   state    : estado final normalizado lido pela simulação
+ *   os       : valores dos controles na tela (escritos por controls.js)
+ *   toggleClamp() / requestMode() / toggleEstop() : acionados pelos botões da tela
+ *   poll()   : recalcula `state` (chamado a cada frame)
  */
 (function () {
   const state = {
-    thrust: 0, steer: 0, flow: 0, rotation: 0,
-    clamp: true, estop: false, connected: false,
-    _modeEdge: false, _modePressed: false,
-    _clampPressed: false, _estopPressed: false,
+    thrust: 0,    // -1 (puxo) .. +1 (empuxo)
+    steer: 0,     // -1 (esq.) .. +1 (dir.)
+    flow: 0,      // 0 .. 1
+    rotation: 0,  // 0 .. 1
+    clamp: true,
+    estop: false,
+    connected: false,
+    _modeEdge: false,
   };
 
-  // ---- Teclado (fallback) ----
+  // Controles na tela (persistentes para fluido/rotação; momentâneos p/ joysticks)
+  const os = { thrust: 0, steer: 0, flow: 0, rotation: 0 };
+
+  // Toggles pendentes — disparados por qualquer fonte e consumidos no poll
+  let pendingClamp = false, pendingMode = false, pendingEstop = false;
+
+  // ---- Teclado ----
   const keys = {};
   window.addEventListener("keydown", (e) => {
     keys[e.key.toLowerCase()] = true;
@@ -29,89 +36,82 @@
   });
   window.addEventListener("keyup", (e) => { keys[e.key.toLowerCase()] = false; });
 
-  // ---- Detecção de conexão ----
-  window.addEventListener("gamepadconnected", () => updateConnected());
-  window.addEventListener("gamepaddisconnected", () => updateConnected());
+  // ---- Detecção de conexão do gamepad ----
+  window.addEventListener("gamepadconnected", updateConnected);
+  window.addEventListener("gamepaddisconnected", updateConnected);
   function updateConnected() {
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
     state.connected = Array.from(pads).some((p) => p);
   }
 
-  function deadzone(v, dz = 0.12) {
-    return Math.abs(v) < dz ? 0 : v;
+  const edgeFlags = {};
+  function edge(pressed, key, onPress) {
+    if (pressed && !edgeFlags[key]) onPress();
+    edgeFlags[key] = !!pressed;
   }
+  function deadzone(v, dz = 0.12) { return Math.abs(v) < dz ? 0 : v; }
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 
-  function pollGamepad() {
+  function readGamepad() {
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
     const gp = Array.from(pads).find((p) => p);
     if (!gp) return false;
 
-    // Eixos padrão (mapeamento "standard")
-    const lY = deadzone(gp.axes[1] || 0); // analógico esquerdo Y
-    const rX = deadzone(gp.axes[2] || 0); // analógico direito X
+    state.thrust = -deadzone(gp.axes[1] || 0);
+    state.steer = deadzone(gp.axes[2] || 0);
+    state.flow = gp.buttons[7] ? gp.buttons[7].value : 0;     // RT
+    state.rotation = gp.buttons[6] ? gp.buttons[6].value : 0; // LT
+    os.flow = state.flow;        // espelha p/ sliders na tela
+    os.rotation = state.rotation;
 
-    state.thrust = -lY;          // para cima = empuxo (positivo)
-    state.steer = rX;
-
-    // Gatilhos: botões 6 (LT) e 7 (RT) em mapeamento standard
-    const lt = gp.buttons[6] ? gp.buttons[6].value : 0;
-    const rt = gp.buttons[7] ? gp.buttons[7].value : 0;
-    state.flow = rt;
-    state.rotation = lt;
-
-    // Botão A (0) -> grampo (toggle); B (1) -> modo; START (9) -> e-stop
-    handleEdge(gp.buttons[0] && gp.buttons[0].pressed, "_clampPressed", () => {
-      state.clamp = !state.clamp;
-    });
-    state._modeEdge = false;
-    handleEdge(gp.buttons[1] && gp.buttons[1].pressed, "_modePressed", () => {
-      state._modeEdge = true;
-    });
-    handleEdge(gp.buttons[9] && gp.buttons[9].pressed, "_estopPressed", () => {
-      state.estop = !state.estop;
-    });
+    edge(gp.buttons[0] && gp.buttons[0].pressed, "gp0", () => (pendingClamp = true));
+    edge(gp.buttons[1] && gp.buttons[1].pressed, "gp1", () => (pendingMode = true));
+    edge(gp.buttons[9] && gp.buttons[9].pressed, "gp9", () => (pendingEstop = true));
     return true;
   }
 
-  function handleEdge(pressed, flag, onPress) {
-    if (pressed && !state[flag]) onPress();
-    state[flag] = pressed;
+  function readKeyboardAndScreen() {
+    // Fluido e rotação: persistentes, ajustados por teclado (sliders escrevem em os)
+    if (keys["arrowup"]) os.flow = clamp(os.flow + 0.02, 0, 1);
+    if (keys["arrowdown"]) os.flow = clamp(os.flow - 0.02, 0, 1);
+    if (keys["e"]) os.rotation = clamp(os.rotation + 0.02, 0, 1);
+    if (keys["q"]) os.rotation = clamp(os.rotation - 0.02, 0, 1);
+
+    // Empuxo/direção: teclado (momentâneo) + joystick na tela
+    let kbT = 0;
+    if (keys["w"]) kbT += 1;
+    if (keys["s"]) kbT -= 1;
+    let kbS = 0;
+    if (keys["d"]) kbS += 1;
+    if (keys["a"]) kbS -= 1;
+
+    state.thrust = clamp(kbT + os.thrust, -1, 1);
+    state.steer = clamp(kbS + os.steer, -1, 1);
+    state.flow = os.flow;
+    state.rotation = os.rotation;
+
+    edge(!!keys["g"], "kbG", () => (pendingClamp = true));
+    edge(!!keys["m"], "kbM", () => (pendingMode = true));
+    edge(!!keys[" "], "kbSpace", () => (pendingEstop = true));
   }
 
-  function pollKeyboard() {
-    // Empuxo / puxo
-    let t = 0;
-    if (keys["w"]) t += 1;
-    if (keys["s"]) t -= 1;
-    state.thrust = t;
-
-    // Direção
-    let s = 0;
-    if (keys["d"]) s += 1;
-    if (keys["a"]) s -= 1;
-    state.steer = s;
-
-    // Fluido (setas cima/baixo ajustam gradualmente)
-    if (keys["arrowup"]) state.flow = Math.min(1, state.flow + 0.02);
-    if (keys["arrowdown"]) state.flow = Math.max(0, state.flow - 0.02);
-
-    // Rotação (q/e)
-    if (keys["e"]) state.rotation = Math.min(1, state.rotation + 0.02);
-    if (keys["q"]) state.rotation = Math.max(0, state.rotation - 0.02);
-
-    // Grampo (g) e parada (espaço) com borda
-    handleEdge(!!keys["g"], "_clampPressed", () => { state.clamp = !state.clamp; });
-    state._modeEdge = false;
-    handleEdge(!!keys["m"], "_modePressed", () => { state._modeEdge = true; });
-    handleEdge(!!keys[" "], "_estopPressed", () => { state.estop = !state.estop; });
-  }
-
-  // API pública: chamada a cada frame pela simulação
   window.Input = {
     state,
+    os,
+    toggleClamp() { pendingClamp = true; },
+    requestMode() { pendingMode = true; },
+    toggleEstop() { pendingEstop = true; },
     poll() {
       updateConnected();
-      if (!pollGamepad()) pollKeyboard();
+      state._modeEdge = false;
+
+      if (!readGamepad()) readKeyboardAndScreen();
+
+      // Aplica toggles vindos de qualquer fonte (inclui botões na tela)
+      if (pendingClamp) { state.clamp = !state.clamp; pendingClamp = false; }
+      if (pendingMode) { state._modeEdge = true; pendingMode = false; }
+      if (pendingEstop) { state.estop = !state.estop; pendingEstop = false; }
+
       return state;
     },
   };
