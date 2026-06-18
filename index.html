@@ -28,16 +28,36 @@
     </div>
   </header>
 
+  <!-- Barra de cenário / solo / hastes -->
+  <div class="scenario-bar">
+    <div class="seg">
+      <span class="seg-label">CENÁRIO / SOLO:</span>
+      <button class="soil-btn active" data-soil="mole">Solo Mole</button>
+      <button class="soil-btn" data-soil="medio">Solo Médio</button>
+      <button class="soil-btn" data-soil="rochoso">Solo Rochoso</button>
+      <button class="soil-btn" data-soil="urbano">Zona Urbana</button>
+    </div>
+    <div class="seg">
+      <span class="seg-label">FASE:</span><strong id="phase-text">FURO PILOTO</strong>
+    </div>
+    <div class="seg">
+      <span class="seg-label">HASTES:</span>
+      <strong id="rod-count">1</strong>
+      <span class="seg-sub" id="rod-len">(3.0 m)</span>
+      <button id="btn-add-rod" class="mini-btn">+ ADICIONAR HASTE</button>
+    </div>
+  </div>
+
   <main class="grid">
     <!-- Painel de instrumentos -->
     <section class="panel instruments">
       <h2>PAINEL DE INSTRUMENTOS</h2>
       <div class="gauges">
-        <canvas class="gauge" data-key="pressao"  data-label="PRESSÃO"     data-unit="bar"   data-max="300" width="180" height="180"></canvas>
-        <canvas class="gauge" data-key="torque"   data-label="TORQUE"      data-unit="kN·m"  data-max="100" width="180" height="180"></canvas>
-        <canvas class="gauge" data-key="rotacao"  data-label="VELOCIDADE"  data-unit="rpm"   data-max="120" width="180" height="180"></canvas>
-        <canvas class="gauge" data-key="fluido"   data-label="FLUIDO"      data-unit="l/min" data-max="400" width="180" height="180"></canvas>
-        <canvas class="gauge" data-key="forca"    data-label="FORÇA"       data-unit="kN"    data-max="200" width="180" height="180"></canvas>
+        <canvas class="gauge" data-key="pressao"  data-label="PRESSÃO LAMA" data-unit="bar"   data-max="80"   width="180" height="180"></canvas>
+        <canvas class="gauge" data-key="torque"   data-label="TORQUE"       data-unit="N·m"   data-max="6500" width="180" height="180"></canvas>
+        <canvas class="gauge" data-key="rotacao"  data-label="ROTAÇÃO"      data-unit="rpm"   data-max="150"  width="180" height="180"></canvas>
+        <canvas class="gauge" data-key="fluido"   data-label="VAZÃO LAMA"   data-unit="l/min" data-max="250"  width="180" height="180"></canvas>
+        <canvas class="gauge" data-key="forca"    data-label="FORÇA"        data-unit="kN"    data-max="225"  width="180" height="180"></canvas>
       </div>
       <div class="alerts" id="alerts"></div>
     </section>
@@ -143,6 +163,16 @@
         <small>DESEMPENHO GERAL</small>
       </div>
       <ul class="report-list" id="report-list"></ul>
+    </section>
+
+    <!-- Eventos, falhas e segurança -->
+    <section class="panel events">
+      <h2>EVENTOS, FALHAS E SEGURANÇA</h2>
+      <div class="events-top">
+        <button id="btn-fault" class="op-btn">⚠ Simular falha</button>
+        <span class="events-hint">Falhas também surgem sozinhas conforme a operação. Siga a ação recomendada para resolvê-las.</span>
+      </div>
+      <ul id="event-list" class="event-list"></ul>
     </section>
   </main>
 

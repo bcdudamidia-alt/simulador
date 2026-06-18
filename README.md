@@ -45,11 +45,19 @@ Sem controle conectado, o simulador funciona pelo teclado automaticamente.
 
 ## O que está implementado
 
-- Painel de instrumentos ao vivo: pressão, torque, velocidade (rpm), fluido, força
+Calibrado pelos limites de referência da **XCMG XZ200** (guia operacional):
+força empurra/puxa ~225 kN, rotação 0–150 rpm, torque máx ~6.350 N·m,
+vazão de lama até 250 L/min, pressão de lama até 80 bar, haste de 3 m.
+
+- Painel de instrumentos ao vivo: pressão de lama, torque, rotação, vazão, força
 - Painel de navegação com perfil do furo (inclinação, azimute, profundidade, distância)
-- Modos de operação: Perfuração, Alargamento, Puxo de tubo
-- Alertas de segurança (pressão alta, falta de fluido, torque excessivo, e-stop)
-- Relatório de desempenho com pontuação e estrelas
+- Fases da operação: Furo Piloto, Alargamento, Retroarrasto
+- Cenários de solo: mole, médio, rochoso e zona urbana (afetam física e risco)
+- Gestão de hastes (adição a cada 3 m, com bloqueio se a haste acabar)
+- Sistema de falhas baseado no guia (pressão de lama alta, cabeçote preso,
+  pouco retorno de lama, perda de sinal da sonda, contato com rede subterrânea),
+  com causa, ação recomendada e resolução guiada
+- Alertas de segurança e relatório de desempenho com pontuação e estrelas
 
 ## Estrutura
 

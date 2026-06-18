@@ -50,13 +50,43 @@ body {
 .gp-off strong { color: var(--red); }
 .gp-on strong { color: var(--green); }
 
+/* ---------- Barra de cenário ---------- */
+.scenario-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 16px;
+  margin-top: 14px;
+}
+.scenario-bar .seg { display: flex; align-items: center; gap: 8px; }
+.seg-label { font-size: 11px; letter-spacing: 1px; color: var(--muted); }
+.seg-sub { font-size: 12px; color: var(--muted); }
+.scenario-bar strong { color: var(--green); font-size: 14px; }
+.soil-btn, .mini-btn {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.soil-btn:hover, .mini-btn:hover { border-color: var(--accent); }
+.soil-btn.active { background: var(--accent); color: #1a1206; border-color: var(--accent); font-weight: 600; }
+.mini-btn { background: var(--accent-2); border-color: var(--accent-2); color: #fff; font-weight: 600; }
+
 /* ---------- Grid ---------- */
 .grid {
   display: grid;
   grid-template-columns: 1.2fr 1fr;
   grid-template-areas:
     "instruments borepath"
-    "controls report";
+    "controls report"
+    "events events";
   gap: 14px;
   margin-top: 14px;
 }
@@ -64,6 +94,25 @@ body {
 .borepath { grid-area: borepath; }
 .controls { grid-area: controls; }
 .report { grid-area: report; }
+.events { grid-area: events; }
+
+/* ---------- Eventos / falhas ---------- */
+.events-top { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.events-hint { font-size: 12px; color: var(--muted); }
+.event-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.evt { font-size: 12px; padding: 8px 12px; border-radius: 6px; background: var(--panel-2); }
+.evt.log { color: var(--muted); }
+.evt.log span { color: var(--accent); margin-right: 6px; }
+.evt.fault {
+  background: rgba(245,166,35,0.12);
+  border: 1px solid var(--accent);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.evt.fault b { color: var(--accent); }
+.evt.fault.critical { background: rgba(239,68,68,0.15); border-color: var(--red); }
+.evt.fault.critical b { color: var(--red); }
+.evt .cause { color: var(--muted); }
+.evt .action { color: var(--green); font-weight: 600; }
 
 .panel {
   background: var(--panel);
