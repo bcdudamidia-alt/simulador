@@ -1,21 +1,27 @@
 /*
  * gauges.js
- * Desenha mostradores circulares (estilo painel de máquina) em <canvas>.
- * Cada canvas com classe .gauge é registrado automaticamente.
+ * Mostradores circulares estilo painel de máquina, desenhados em <canvas>:
+ * escala graduada, arco luminoso e ponteiro. Registra automaticamente todo
+ * canvas com a classe .gauge.
  */
 (function () {
   const gauges = [];
 
   document.querySelectorAll("canvas.gauge").forEach((cv) => {
+    // densidade de pixels para nitidez em telas retina
+    const dpr = window.devicePixelRatio || 1;
+    const w = cv.width, h = cv.height;
+    cv.width = w * dpr; cv.height = h * dpr;
+    cv.style.width = w + "px"; cv.style.height = h + "px";
+    const ctx = cv.getContext("2d");
+    ctx.scale(dpr, dpr);
     gauges.push({
-      cv,
-      ctx: cv.getContext("2d"),
+      cv, ctx, w, h,
       key: cv.dataset.key,
       label: cv.dataset.label,
       unit: cv.dataset.unit,
       max: parseFloat(cv.dataset.max),
-      value: 0,
-      display: 0,
+      value: 0, display: 0,
     });
   });
 
@@ -23,41 +29,88 @@
   const END = Math.PI * 2.25;     // +135°
   const SWEEP = END - START;
 
+  function colorFor(frac) {
+    if (frac > 0.85) return "#ff4d4d";
+    if (frac > 0.65) return "#ffb01f";
+    return "#2f93ff";
+  }
+
   function draw(g) {
-    const { ctx, cv } = g;
-    const w = cv.width, h = cv.height;
-    const cx = w / 2, cy = h / 2 + 6, r = w / 2 - 16;
+    const { ctx, w, h } = g;
+    const cx = w / 2, cy = h / 2 + 8, r = w / 2 - 20;
     ctx.clearRect(0, 0, w, h);
 
+    const frac = Math.max(0, Math.min(1, g.display / g.max));
+    const color = colorFor(frac);
+
+    // marcações da escala (ticks)
+    const ticks = 10;
+    for (let i = 0; i <= ticks; i++) {
+      const a = START + (SWEEP * i) / ticks;
+      const inner = i % 5 === 0 ? r - 14 : r - 9;
+      const lit = i / ticks <= frac;
+      ctx.strokeStyle = lit ? color : "#2a3a4d";
+      ctx.lineWidth = i % 5 === 0 ? 2.5 : 1.5;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a) * (r - 2), cy + Math.sin(a) * (r - 2));
+      ctx.lineTo(cx + Math.cos(a) * inner, cy + Math.sin(a) * inner);
+      ctx.stroke();
+    }
+
     // arco de fundo
-    ctx.lineWidth = 12;
+    ctx.lineWidth = 9;
     ctx.lineCap = "round";
-    ctx.strokeStyle = "#1d2837";
+    ctx.strokeStyle = "#192634";
     ctx.beginPath();
-    ctx.arc(cx, cy, r, START, END);
+    ctx.arc(cx, cy, r - 22, START, END);
     ctx.stroke();
 
-    // arco preenchido
-    const frac = Math.max(0, Math.min(1, g.display / g.max));
-    const color = frac > 0.85 ? "#ef4444" : frac > 0.65 ? "#f5a623" : "#2e8bff";
+    // arco luminoso
+    ctx.save();
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 14;
     ctx.strokeStyle = color;
     ctx.beginPath();
-    ctx.arc(cx, cy, r, START, START + SWEEP * frac);
+    ctx.arc(cx, cy, r - 22, START, START + SWEEP * frac);
     ctx.stroke();
+    ctx.restore();
+
+    // ponteiro
+    const ang = START + SWEEP * frac;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(ang);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(-4, 0);
+    ctx.lineTo(r - 26, -2);
+    ctx.lineTo(r - 26, 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    // cubo central
+    ctx.fillStyle = "#2a3a4d";
+    ctx.beginPath(); ctx.arc(cx, cy, 6, 0, Math.PI * 2); ctx.fill();
 
     // valor numérico
-    ctx.fillStyle = "#e6edf3";
+    ctx.fillStyle = "#eef4fb";
     ctx.textAlign = "center";
-    ctx.font = "bold 30px Segoe UI, sans-serif";
-    ctx.fillText(Math.round(g.display), cx, cy + 6);
+    ctx.font = "700 32px 'Rajdhani', sans-serif";
+    ctx.fillText(formatVal(g.display, g.max), cx, cy + 6);
 
-    ctx.fillStyle = "#8a97a8";
-    ctx.font = "11px Segoe UI, sans-serif";
-    ctx.fillText(g.unit, cx, cy + 26);
+    ctx.fillStyle = "#8595a8";
+    ctx.font = "500 11px 'Inter', sans-serif";
+    ctx.fillText(g.unit, cx, cy + 24);
 
-    ctx.fillStyle = "#f5a623";
-    ctx.font = "bold 11px Segoe UI, sans-serif";
-    ctx.fillText(g.label, cx, cy - r - 2);
+    ctx.fillStyle = color;
+    ctx.font = "600 11px 'Rajdhani', sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(g.label, cx, 18);
+  }
+
+  function formatVal(v, max) {
+    if (max >= 1000) return Math.round(v).toLocaleString("pt-BR");
+    return Math.round(v);
   }
 
   window.Gauges = {
@@ -67,7 +120,6 @@
     },
     render() {
       gauges.forEach((g) => {
-        // suavização para um movimento de ponteiro realista
         g.display += (g.value - g.display) * 0.15;
         draw(g);
       });
