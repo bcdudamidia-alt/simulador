@@ -58,6 +58,8 @@ vazão de lama até 250 L/min, pressão de lama até 80 bar, haste de 3 m.
   pouco retorno de lama, perda de sinal da sonda, contato com rede subterrânea),
   com causa, ação recomendada e resolução guiada
 - Alertas de segurança e relatório de desempenho com pontuação e estrelas
+- **Visão 3D** (Three.js) da máquina, do solo e da trajetória do furo em tempo
+  real, com câmera orbitável que acompanha a broca
 
 ## Estrutura
 

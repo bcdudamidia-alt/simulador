@@ -55,7 +55,8 @@
   const sim = {
     pressaoLama: 0, torque: 0, rotacao: 0, vazao: 0, forca: 0,
     barra: 0, distancia: 0, profundidade: 0, inclinacao: 0, azimute: 0,
-    path: [{ x: 0, y: 0 }],
+    lateral: 0,
+    path: [{ x: 0, y: 0, z: 0 }],
     modos: ["FURO PILOTO", "ALARGAMENTO", "RETROARRASTO"],
     modoIdx: 0,
     grampo: true,
@@ -168,10 +169,12 @@
       sim.azimute = clamp(sim.azimute + inp.steer * 8 * dt, -45, 45);
       const inclTarget = -2 - sim.azimute * 0.05;
       sim.inclinacao = approach(sim.inclinacao, inclTarget, dt * 2);
+      const rad = (sim.azimute * Math.PI) / 180;
       sim.barra = Math.max(0, sim.barra + avanco);
-      sim.distancia = Math.max(0, sim.distancia + avanco * Math.cos((sim.azimute * Math.PI) / 180));
+      sim.distancia = Math.max(0, sim.distancia + avanco * Math.cos(rad));
+      sim.lateral += avanco * Math.sin(rad);
       sim.profundidade = clamp(sim.profundidade - (sim.inclinacao / 100) * avanco * 10, 0, 30);
-      sim.path.push({ x: sim.distancia, y: sim.profundidade });
+      sim.path.push({ x: sim.distancia, y: sim.profundidade, z: sim.lateral });
       if (sim.path.length > 4000) sim.path.shift();
     }
 
@@ -400,4 +403,7 @@
     requestAnimationFrame(loop);
   }
   requestAnimationFrame(loop);
+
+  // Expõe estado para a visão 3D (view3d.js)
+  window.Sim = sim;
 })();

@@ -75,6 +75,13 @@
       </div>
     </section>
 
+    <!-- Visão 3D -->
+    <section class="panel view3d">
+      <h2>VISÃO 3D DA PERFURAÇÃO</h2>
+      <div id="view3d-container"></div>
+      <p class="hint">Arraste para girar a câmera • role o mouse para aproximar • a câmera segue a broca</p>
+    </section>
+
     <!-- Controles -->
     <section class="panel controls">
       <h2>CONTROLES SIMULADOS</h2>
@@ -176,9 +183,11 @@
     </section>
   </main>
 
+  <script src="https://unpkg.com/three@0.137.0/build/three.min.js"></script>
   <script src="js/gamepad.js"></script>
   <script src="js/controls.js"></script>
   <script src="js/gauges.js"></script>
   <script src="js/sim.js"></script>
+  <script src="js/view3d.js"></script>
 </body>
 </html>

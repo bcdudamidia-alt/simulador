@@ -85,6 +85,7 @@ body {
   grid-template-columns: 1.2fr 1fr;
   grid-template-areas:
     "instruments borepath"
+    "view3d view3d"
     "controls report"
     "events events";
   gap: 14px;
@@ -92,9 +93,20 @@ body {
 }
 .instruments { grid-area: instruments; }
 .borepath { grid-area: borepath; }
+.view3d { grid-area: view3d; }
 .controls { grid-area: controls; }
 .report { grid-area: report; }
 .events { grid-area: events; }
+
+#view3d-container {
+  width: 100%;
+  height: 380px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: linear-gradient(#1b2a3d, #0d121b);
+  cursor: grab;
+}
+#view3d-container:active { cursor: grabbing; }
 
 /* ---------- Eventos / falhas ---------- */
 .events-top { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
@@ -340,5 +352,5 @@ kbd {
 .report-list .stars { color: var(--accent); letter-spacing: 2px; }
 
 @media (max-width: 900px) {
-  .grid { grid-template-columns: 1fr; grid-template-areas: "instruments" "borepath" "controls" "report"; }
+  .grid { grid-template-columns: 1fr; grid-template-areas: "instruments" "borepath" "view3d" "controls" "report" "events"; }
 }
