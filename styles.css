@@ -79,6 +79,54 @@ body {
 .soil-btn.active { background: var(--accent); color: #1a1206; border-color: var(--accent); font-weight: 600; }
 .mini-btn { background: var(--accent-2); border-color: var(--accent-2); color: #fff; font-weight: 600; }
 
+/* ---------- Modo Aula ---------- */
+.lesson-bar {
+  margin-top: 14px;
+  background: linear-gradient(90deg, #10202e, var(--panel));
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 16px;
+}
+.lesson-toggle {
+  background: var(--green);
+  color: #06281c;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+}
+.lesson-toggle.on { background: var(--red); color: #fff; }
+.lesson-toggle:hover { filter: brightness(1.08); }
+
+.lesson-main {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.lesson-step { flex: 1; min-width: 260px; }
+.lesson-num {
+  display: inline-block;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: #06281c;
+  background: var(--accent);
+  border-radius: 4px;
+  padding: 2px 8px;
+  margin-bottom: 6px;
+}
+.lesson-step strong { display: block; font-size: 16px; color: var(--accent); margin: 4px 0; }
+.lesson-step p { font-size: 13px; color: var(--text); line-height: 1.5; }
+.lesson-side { width: 240px; }
+.lesson-status { font-size: 14px; font-weight: 600; color: var(--accent); margin-bottom: 8px; }
+.lesson-status.ok { color: var(--green); }
+.lesson-progress { height: 10px; background: var(--panel-2); border-radius: 5px; overflow: hidden; }
+.lesson-progress div { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent-2), var(--green)); transition: width .4s ease; }
+
 /* ---------- Grid ---------- */
 .grid {
   display: grid;

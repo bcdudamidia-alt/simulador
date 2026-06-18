@@ -60,6 +60,9 @@ vazão de lama até 250 L/min, pressão de lama até 80 bar, haste de 3 m.
 - Alertas de segurança e relatório de desempenho com pontuação e estrelas
 - **Visão 3D** (Three.js) da máquina, do solo e da trajetória do furo em tempo
   real, com câmera orbitável que acompanha a broca
+- **Modo Aula**: procedimento guiado passo a passo (seção 8 do guia), validado
+  em tempo real — partida, fluido, rotação, furo piloto, adição de haste,
+  navegação, alargamento, emergência e parada normal
 
 ## Estrutura
 
