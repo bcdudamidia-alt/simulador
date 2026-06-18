@@ -223,68 +223,122 @@
     Gauges.set("forca", sim.forca);
   }
 
-  // ---------------- DESENHO DO FURO ----------------
+  // ---------------- PAINEL DE NAVEGAÇÃO (gráfico técnico) ----------------
+  function lerpColor(a, b, t) {
+    const ah = parseInt(a.slice(1), 16), bh = parseInt(b.slice(1), 16);
+    const ar = ah >> 16, ag = (ah >> 8) & 255, ab = ah & 255;
+    const br = bh >> 16, bg = (bh >> 8) & 255, bb = bh & 255;
+    const r = Math.round(ar + (br - ar) * t), g = Math.round(ag + (bg - ag) * t), bl = Math.round(ab + (bb - ab) * t);
+    return `rgb(${r},${g},${bl})`;
+  }
+  function depthColor(f) {
+    return f < 0.5 ? lerpColor("#2fe0a0", "#ffb01f", f / 0.5) : lerpColor("#ffb01f", "#ff4d4d", (f - 0.5) / 0.5);
+  }
+
   function drawBore() {
-    const w = boreCv.width, h = boreCv.height, groundY = 70;
+    const w = boreCv.width, h = boreCv.height;
+    const ml = 12, mt = 26, mr = 48, mb = 14;
+    const plotW = w - ml - mr, plotH = h - mt - mb;
+    const maxDepth = 30;
+    const maxDist = Math.max(60, Math.ceil((sim.distancia + 12) / 20) * 20);
+    const mapX = (d) => ml + (d / maxDist) * plotW;
+    const mapY = (z) => mt + (z / maxDepth) * plotH;
+
     boreCtx.clearRect(0, 0, w, h);
+    // fundo do gráfico
+    boreCtx.fillStyle = "#070b11";
+    roundRect(boreCtx, ml, mt, plotW, plotH, 6); boreCtx.fill();
 
-    const sky = boreCtx.createLinearGradient(0, 0, 0, groundY);
-    sky.addColorStop(0, "#1b2a3d"); sky.addColorStop(1, "#243748");
-    boreCtx.fillStyle = sky; boreCtx.fillRect(0, 0, w, groundY);
-
-    const soilColor = { mole: "#3a2a1c", medio: "#352417", rochoso: "#2e2a26", urbano: "#332a20" }[sim.soil];
-    const grad = boreCtx.createLinearGradient(0, groundY, 0, h);
-    grad.addColorStop(0, soilColor); grad.addColorStop(1, "#1a120b");
-    boreCtx.fillStyle = grad; boreCtx.fillRect(0, groundY, w, h - groundY);
-
-    boreCtx.strokeStyle = "#5a4632"; boreCtx.lineWidth = 2;
-    boreCtx.beginPath(); boreCtx.moveTo(0, groundY); boreCtx.lineTo(w, groundY); boreCtx.stroke();
-
-    // pedras no solo rochoso
-    if (sim.soil === "rochoso") {
-      boreCtx.fillStyle = "rgba(160,150,140,0.25)";
-      for (let i = 0; i < 30; i++) {
-        const rx = (i * 137) % w, ry = groundY + 20 + ((i * 53) % (h - groundY - 30));
-        boreCtx.beginPath(); boreCtx.arc(rx, ry, 6 + (i % 4) * 2, 0, Math.PI * 2); boreCtx.fill();
+    // grade
+    boreCtx.font = "600 10px 'JetBrains Mono', monospace";
+    boreCtx.textAlign = "center";
+    for (let d = 0; d <= maxDist; d += 20) {
+      const x = mapX(d);
+      boreCtx.strokeStyle = "rgba(120,150,180,0.10)"; boreCtx.lineWidth = 1;
+      boreCtx.beginPath(); boreCtx.moveTo(x, mt); boreCtx.lineTo(x, mt + plotH); boreCtx.stroke();
+      boreCtx.fillStyle = "#5d6b7d";
+      boreCtx.fillText(d, x, mt - 9);
+    }
+    boreCtx.textAlign = "left";
+    for (let z = 0; z <= maxDepth; z += 5) {
+      const y = mapY(z);
+      const major = z % 10 === 0;
+      boreCtx.strokeStyle = major ? "rgba(120,150,180,0.14)" : "rgba(120,150,180,0.06)"; boreCtx.lineWidth = 1;
+      boreCtx.beginPath(); boreCtx.moveTo(ml, y); boreCtx.lineTo(ml + plotW, y); boreCtx.stroke();
+      if (major) {
+        boreCtx.fillStyle = "#5d6b7d";
+        boreCtx.fillText((z === 0 ? "0" : "−" + z) + " m", ml + plotW + 6, y + 3);
       }
     }
+    // títulos dos eixos
+    boreCtx.fillStyle = "#8595a8";
+    boreCtx.font = "600 9px 'Rajdhani', sans-serif";
+    boreCtx.textAlign = "left"; boreCtx.fillText("DISTÂNCIA (m)", ml, 11);
+    boreCtx.textAlign = "right"; boreCtx.fillText("PROF.", w - 4, 11);
 
-    boreCtx.strokeStyle = "rgba(255,255,255,0.05)";
-    boreCtx.fillStyle = "#8a97a8"; boreCtx.font = "10px Segoe UI";
-    for (let d = 5; d <= 30; d += 5) {
-      const y = groundY + (d / 30) * (h - groundY - 10);
-      boreCtx.beginPath(); boreCtx.moveTo(0, y); boreCtx.lineTo(w, y); boreCtx.stroke();
-      boreCtx.fillText(d + " m", 4, y - 2);
-    }
+    // linha de superfície
+    boreCtx.strokeStyle = "rgba(76,107,58,0.9)"; boreCtx.lineWidth = 2;
+    boreCtx.beginPath(); boreCtx.moveTo(ml, mapY(0)); boreCtx.lineTo(ml + plotW, mapY(0)); boreCtx.stroke();
 
-    const maxDist = Math.max(40, sim.distancia + 10);
-    const sx = (w - 40) / maxDist, sy = (h - groundY - 10) / 30;
-
-    // caminho perfurado
-    boreCtx.strokeStyle = "#2e8bff"; boreCtx.lineWidth = 3; boreCtx.beginPath();
-    sim.path.forEach((p, i) => {
-      const x = 20 + p.x * sx, y = groundY + p.y * sy;
-      i === 0 ? boreCtx.moveTo(x, y) : boreCtx.lineTo(x, y);
-    });
+    // trajetória de projeto (referência) — entrada e nível alvo
+    boreCtx.setLineDash([5, 5]);
+    boreCtx.strokeStyle = "rgba(140,160,185,0.35)"; boreCtx.lineWidth = 1.5;
+    boreCtx.beginPath();
+    boreCtx.moveTo(mapX(0), mapY(0));
+    boreCtx.lineTo(mapX(9), mapY(12));
+    boreCtx.lineTo(mapX(maxDist), mapY(12));
     boreCtx.stroke();
+    boreCtx.setLineDash([]);
 
-    // marcas de emenda de haste (a cada ROD_LEN)
-    boreCtx.fillStyle = "#9fb3c8";
+    // trajetória real (gradiente por profundidade) com brilho
+    boreCtx.lineWidth = 3.2; boreCtx.lineCap = "round"; boreCtx.lineJoin = "round";
+    boreCtx.shadowBlur = 8;
+    for (let i = 1; i < sim.path.length; i++) {
+      const p0 = sim.path[i - 1], p1 = sim.path[i];
+      const f = clamp(p1.y / maxDepth, 0, 1);
+      const c = depthColor(f);
+      boreCtx.strokeStyle = c; boreCtx.shadowColor = c;
+      boreCtx.beginPath();
+      boreCtx.moveTo(mapX(p0.x), mapY(p0.y));
+      boreCtx.lineTo(mapX(p1.x), mapY(p1.y));
+      boreCtx.stroke();
+    }
+    boreCtx.shadowBlur = 0;
+
+    // marcas de emenda de haste
+    boreCtx.fillStyle = "rgba(180,200,220,0.7)";
     for (let m = ROD_LEN; m < sim.barra; m += ROD_LEN) {
-      const frac = m / Math.max(0.001, sim.barra);
-      const idx = Math.floor(frac * (sim.path.length - 1));
+      const idx = Math.floor((m / Math.max(0.001, sim.barra)) * (sim.path.length - 1));
       const p = sim.path[idx]; if (!p) continue;
-      boreCtx.beginPath(); boreCtx.arc(20 + p.x * sx, groundY + p.y * sy, 2.5, 0, Math.PI * 2); boreCtx.fill();
+      boreCtx.beginPath(); boreCtx.arc(mapX(p.x), mapY(p.y), 2, 0, Math.PI * 2); boreCtx.fill();
     }
 
-    const headX = 20 + sim.distancia * sx, headY = groundY + sim.profundidade * sy;
-    boreCtx.fillStyle = sim.faults.cabecote_preso ? "#ef4444" : "#f5a623";
-    boreCtx.beginPath(); boreCtx.arc(headX, headY, 7, 0, Math.PI * 2); boreCtx.fill();
-    boreCtx.fillStyle = "#fff"; boreCtx.fillText("BROCA", headX + 10, headY + 3);
+    // cabeça de perfuração (broca)
+    const hx = mapX(sim.distancia), hy = mapY(sim.profundidade);
+    const hc = sim.faults.cabecote_preso ? "#ff4d4d" : "#2f93ff";
+    boreCtx.save();
+    boreCtx.shadowBlur = 14; boreCtx.shadowColor = hc;
+    boreCtx.fillStyle = hc;
+    boreCtx.beginPath(); boreCtx.arc(hx, hy, 5.5, 0, Math.PI * 2); boreCtx.fill();
+    boreCtx.restore();
+    boreCtx.strokeStyle = "rgba(255,255,255,0.5)"; boreCtx.lineWidth = 1.5;
+    boreCtx.beginPath(); boreCtx.arc(hx, hy, 9, 0, Math.PI * 2); boreCtx.stroke();
 
-    // máquina
-    boreCtx.fillStyle = "#f5a623"; boreCtx.fillRect(8, groundY - 22, 34, 20);
-    boreCtx.fillStyle = "#0a0e14"; boreCtx.fillRect(30, groundY - 18, 10, 8);
+    // glifo da máquina no ponto de entrada
+    boreCtx.fillStyle = "#ffb01f";
+    boreCtx.fillRect(mapX(0) - 2, mapY(0) - 14, 22, 11);
+    boreCtx.fillStyle = "#0a0e14";
+    boreCtx.fillRect(mapX(0) + 12, mapY(0) - 11, 6, 5);
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
   }
 
   // ---------------- HUD ----------------
