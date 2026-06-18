@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simulador de Perfuração Horizontal Direcional - HDD</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=5" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo-mark">
+        <span class="logo-hdd">HDD</span>
+        <span class="logo-dot"></span>
+      </div>
+      <div class="brand-text">
+        <h1>SIMULADOR DE PERFURAÇÃO <span>HORIZONTAL DIRECIONAL</span></h1>
+        <p>Treinamento realístico • Operação segura • Alta performance</p>
+      </div>
+    </div>
+    <div class="status">
+      <div id="mode-badge" class="badge">
+        <small>MODO DE OPERAÇÃO</small>
+        <strong id="mode-text">PERFURAÇÃO</strong>
+      </div>
+      <div id="time-badge" class="badge">
+        <small>TEMPO</small>
+        <strong id="time-text">00:00:00</strong>
+      </div>
+      <div id="gamepad-badge" class="badge gp-off">
+        <small>CONTROLE</small>
+        <strong id="gamepad-text">DESCONECTADO</strong>
+      </div>
+    </div>
+  </header>
+
+  <!-- Barra de cenário / solo / hastes -->
+  <div class="scenario-bar">
+    <div class="seg">
+      <span class="seg-label">CENÁRIO / SOLO:</span>
+      <button class="soil-btn active" data-soil="mole">Solo Mole</button>
+      <button class="soil-btn" data-soil="medio">Solo Médio</button>
+      <button class="soil-btn" data-soil="rochoso">Solo Rochoso</button>
+      <button class="soil-btn" data-soil="urbano">Zona Urbana</button>
+    </div>
+    <div class="seg">
+      <span class="seg-label">FASE:</span><strong id="phase-text">FURO PILOTO</strong>
+    </div>
+    <div class="seg">
+      <span class="seg-label">HASTES:</span>
+      <strong id="rod-count">1</strong>
+      <span class="seg-sub" id="rod-len">(3.0 m)</span>
+      <button id="btn-add-rod" class="mini-btn">+ ADICIONAR HASTE</button>
+    </div>
+  </div>
+
+  <!-- Modo Aula (procedimento guiado) -->
+  <div class="lesson-bar">
+    <button id="btn-lesson" class="lesson-toggle">▶ Iniciar Modo Aula</button>
+    <div class="lesson-main" id="lesson-main" hidden>
+      <div class="lesson-step">
+        <span class="lesson-num" id="lesson-num">Passo 1/10</span>
+        <strong id="lesson-title">—</strong>
+        <p id="lesson-instr">—</p>
+      </div>
+      <div class="lesson-side">
+        <div class="lesson-status" id="lesson-status">⏳ Em andamento…</div>
+        <div class="lesson-progress"><div id="lesson-fill"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <main class="grid">
+    <!-- Painel de instrumentos -->
+    <section class="panel instruments">
+      <h2>PAINEL DE INSTRUMENTOS</h2>
+      <div class="gauges">
+        <canvas class="gauge" data-key="pressao"  data-label="PRESSÃO LAMA" data-unit="bar"   data-max="80"   width="180" height="180"></canvas>
+        <canvas class="gauge" data-key="torque"   data-label="TORQUE"       data-unit="N·m"   data-max="6500" width="180" height="180"></canvas>
+        <canvas class="gauge" data-key="rotacao"  data-label="ROTAÇÃO"      data-unit="rpm"   data-max="150"  width="180" height="180"></canvas>
+        <canvas class="gauge" data-key="fluido"   data-label="VAZÃO LAMA"   data-unit="l/min" data-max="250"  width="180" height="180"></canvas>
+        <canvas class="gauge" data-key="forca"    data-label="FORÇA"        data-unit="kN"    data-max="225"  width="180" height="180"></canvas>
+      </div>
+      <div class="alerts" id="alerts"></div>
+    </section>
+
+    <!-- Visão do furo (perfil) -->
+    <section class="panel borepath">
+      <h2>PAINEL DE NAVEGAÇÃO — PERFIL DO FURO</h2>
+      <canvas id="bore-canvas" width="900" height="420"></canvas>
+      <div class="nav-readout">
+        <div><small>INCLINAÇÃO</small><strong id="nav-incl">0.0 %</strong></div>
+        <div><small>AZIMUTE</small><strong id="nav-azim">0.0°</strong></div>
+        <div><small>PROFUNDIDADE</small><strong id="nav-depth">0.0 m</strong></div>
+        <div><small>DISTÂNCIA</small><strong id="nav-dist">0.0 m</strong></div>
+        <div><small>BARRA</small><strong id="nav-bar">0.00 m</strong></div>
+      </div>
+    </section>
+
+    <!-- Visão 3D -->
+    <section class="panel view3d">
+      <h2>VISÃO 3D DA PERFURAÇÃO</h2>
+      <div id="view3d-container"></div>
+      <p class="hint">Arraste para girar a câmera • role o mouse para aproximar • a câmera segue a broca</p>
+    </section>
+
+    <!-- Controles -->
+    <section class="panel controls">
+      <h2>CONTROLES SIMULADOS</h2>
+
+      <!-- Conexão de controle físico -->
+      <div class="gamepad-bar">
+        <button id="btn-connect" class="connect-btn">🎮 Conectar controle USB</button>
+        <span id="connect-status">Use os controles na tela 👇, o teclado, ou conecte um joystick USB.</span>
+      </div>
+
+      <!-- Controles na tela (mouse / toque) -->
+      <div class="control-deck">
+        <div class="joy-wrap">
+          <div class="joystick" id="joy-thrust" data-axis="y">
+            <div class="knob"></div>
+          </div>
+          <span class="joy-label">EMPUXO / PUXO</span>
+          <small>arraste ↑↓</small>
+        </div>
+
+        <div class="center-controls">
+          <div class="slider-ctl">
+            <label>FLUXO DE FLUIDO <b id="val-flow">0%</b></label>
+            <input type="range" id="sl-flow" min="0" max="100" value="0" />
+          </div>
+          <div class="slider-ctl">
+            <label>ROTAÇÃO DA COLUNA <b id="val-rot">0%</b></label>
+            <input type="range" id="sl-rot" min="0" max="100" value="0" />
+          </div>
+          <div class="op-buttons">
+            <button class="op-btn" id="btn-grampo">GRAMPO</button>
+            <button class="op-btn" id="btn-modo">MODO</button>
+            <button class="op-btn danger" id="btn-estop">PARADA</button>
+          </div>
+        </div>
+
+        <div class="joy-wrap">
+          <div class="joystick" id="joy-steer" data-axis="x">
+            <div class="knob"></div>
+          </div>
+          <span class="joy-label">DIREÇÃO</span>
+          <small>arraste ←→</small>
+        </div>
+      </div>
+
+      <!-- Resposta da máquina (somente leitura) -->
+      <div class="readouts">
+        <div class="control-row">
+          <span class="ctl-label">ROTAÇÃO</span>
+          <div class="bar"><div class="fill" id="bar-rotacao"></div></div>
+        </div>
+        <div class="control-row">
+          <span class="ctl-label">EMPUXO / PUXO</span>
+          <div class="bar center"><div class="fill mid" id="bar-empuxo"></div></div>
+        </div>
+        <div class="control-row">
+          <span class="ctl-label">FLUXO</span>
+          <div class="bar"><div class="fill" id="bar-fluxo"></div></div>
+        </div>
+        <div class="control-row">
+          <span class="ctl-label">DIREÇÃO</span>
+          <div class="bar center"><div class="fill mid" id="bar-direcao"></div></div>
+        </div>
+      </div>
+
+      <div class="toggles">
+        <div class="toggle" id="tg-grampo"><span>GRAMPO</span><em>FECHADO</em></div>
+        <div class="toggle" id="tg-modo"><span>MODO</span><em>PERFURAÇÃO</em></div>
+        <div class="toggle estop" id="tg-estop"><span>PARADA</span><em>OK</em></div>
+      </div>
+
+      <div class="mapping">
+        <p class="hint">Controle USB: analógico esq. = empuxo, analógico dir. = direção,
+          gatilhos = fluido/rotação, A = grampo, B = modo, START = parada.</p>
+        <p class="hint">Teclado: <kbd>W</kbd>/<kbd>S</kbd> empuxo, <kbd>A</kbd>/<kbd>D</kbd> direção,
+          <kbd>↑</kbd>/<kbd>↓</kbd> fluido, <kbd>Q</kbd>/<kbd>E</kbd> rotação,
+          <kbd>G</kbd> grampo, <kbd>M</kbd> modo, <kbd>Espaço</kbd> parada.</p>
+      </div>
+    </section>
+
+    <!-- Relatório -->
+    <section class="panel report">
+      <h2>RELATÓRIO DE DESEMPENHO</h2>
+      <div class="score-wrap">
+        <div class="score-ring" id="score-ring"><span id="score-num">100</span></div>
+        <small>DESEMPENHO GERAL</small>
+      </div>
+      <ul class="report-list" id="report-list"></ul>
+    </section>
+
+    <!-- Eventos, falhas e segurança -->
+    <section class="panel events">
+      <h2>EVENTOS, FALHAS E SEGURANÇA</h2>
+      <div class="events-top">
+        <button id="btn-fault" class="op-btn">⚠ Simular falha</button>
+        <span class="events-hint">Falhas também surgem sozinhas conforme a operação. Siga a ação recomendada para resolvê-las.</span>
+      </div>
+      <ul id="event-list" class="event-list"></ul>
+    </section>
+  </main>
+
+  <script src="https://unpkg.com/three@0.137.0/build/three.min.js"></script>
+  <script src="js/gamepad.js?v=5"></script>
+  <script src="js/controls.js?v=5"></script>
+  <script src="js/gauges.js?v=5"></script>
+  <script src="js/sim.js?v=5"></script>
+  <script src="js/view3d.js?v=5"></script>
+  <script src="js/lesson.js?v=5"></script>
+</body>
+</html>
