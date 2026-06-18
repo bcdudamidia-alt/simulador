@@ -152,6 +152,30 @@ body > * { position: relative; z-index: 1; }
 .mini-btn {
   background: linear-gradient(180deg, var(--blue), var(--blue-d));
   border-color: var(--blue); color: #fff; font-weight: 600;
+  transition: background .15s ease, box-shadow .15s ease;
+}
+/* botão de adicionar haste — estados */
+#btn-add-rod.ready {
+  background: linear-gradient(180deg, var(--green), #18b783);
+  border-color: var(--green); color: #04241a;
+  box-shadow: 0 0 14px rgba(47,224,160,0.4);
+}
+#btn-add-rod.blocked {
+  background: linear-gradient(180deg, #3a4350, #2a313b);
+  border-color: var(--line); color: var(--muted);
+  cursor: not-allowed;
+}
+#btn-add-rod.flash-ok { animation: flashOk .5s ease; }
+#btn-add-rod.flash-err { animation: flashErr .5s ease; }
+@keyframes flashOk {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.12); box-shadow: 0 0 22px var(--green); }
+  100% { transform: scale(1); }
+}
+@keyframes flashErr {
+  0%,100% { transform: translateX(0); }
+  20% { transform: translateX(-5px); background: var(--red); }
+  60% { transform: translateX(5px); background: var(--red); }
 }
 
 /* ===================== MODO AULA ===================== */

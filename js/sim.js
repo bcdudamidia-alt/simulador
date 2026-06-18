@@ -89,14 +89,23 @@
   document.getElementById("btn-fault").addEventListener("click", simulateFault);
 
   function addRod() {
+    const btn = document.getElementById("btn-add-rod");
     if (sim.rotacao > 10 || Math.abs(Input.state.thrust) > 0.1) {
-      logEvent("⚠ Pare a rotação e o avanço antes de adicionar a haste.");
+      logEvent("⚠ Pare a rotação e o empuxo (zere os dois) antes de adicionar a haste.");
       sim.penalidades += 3;
+      flashBtn(btn, "flash-err");
       return;
     }
     sim.rods += 1;
     sim.needRod = false;
     logEvent("✅ Haste adicionada. Total: " + sim.rods + " (" + (sim.rods * ROD_LEN).toFixed(1) + " m)");
+    flashBtn(btn, "flash-ok");
+  }
+
+  function flashBtn(el, cls) {
+    el.classList.remove("flash-ok", "flash-err");
+    void el.offsetWidth; // reinicia a animação
+    el.classList.add(cls);
   }
 
   function simulateFault() {
@@ -351,6 +360,18 @@
     setText("time-text", fmtTime(sim.tempo));
     setText("rod-count", sim.rods);
     setText("rod-len", "(" + (sim.rods * ROD_LEN).toFixed(1) + " m)");
+
+    // estado do botão de adicionar haste (pronto / bloqueado)
+    const addBtn = document.getElementById("btn-add-rod");
+    const canAdd = sim.rotacao <= 10 && Math.abs(Input.state.thrust) <= 0.1;
+    addBtn.classList.toggle("ready", canAdd);
+    addBtn.classList.toggle("blocked", !canAdd);
+    addBtn.title = canAdd
+      ? "Pronto para adicionar haste"
+      : "Zere a rotação e o empuxo para adicionar a haste";
+    addBtn.textContent = canAdd
+      ? (sim.needRod ? "+ ADICIONAR HASTE ✓" : "+ ADICIONAR HASTE")
+      : "⏸ PARE ROTAÇÃO/EMPUXO";
 
     const gpBadge = document.getElementById("gamepad-badge");
     const gpText = document.getElementById("gamepad-text");
