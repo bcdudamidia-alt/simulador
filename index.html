@@ -902,7 +902,13 @@ body {
           canvas.width = w;
           canvas.height = h;
           canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-          resolve(canvas.toDataURL('image/jpeg', 0.6));
+          let quality = 0.5;
+          let result = canvas.toDataURL('image/jpeg', quality);
+          while (result.length > 200000 && quality > 0.1) {
+            quality -= 0.1;
+            result = canvas.toDataURL('image/jpeg', quality);
+          }
+          resolve(result);
         };
         img.onerror = reject;
         img.src = e.target.result;
@@ -967,8 +973,8 @@ body {
 
     for (let i = 0; i < files.length && imagensBase64.length < maxImages; i++) {
       if (!files[i].type.startsWith('image/')) continue;
-      const maxW = 1080;
-      const maxH = tipoSelecionado === 'story' ? 1920 : 1350;
+      const maxW = 800;
+      const maxH = tipoSelecionado === 'story' ? 1420 : 1000;
       try {
         const base64 = await processarImagem(files[i], maxW, maxH);
         imagensBase64.push(base64);
@@ -1047,7 +1053,11 @@ body {
       charCount.textContent = '0';
     } catch (err) {
       console.error('Publish error:', err);
-      toast('Erro ao salvar post. Imagem pode ser grande demais.');
+      if (err.message && err.message.includes('exceeds the maximum')) {
+        toast('Erro: imagem muito grande. Tente uma imagem menor.');
+      } else {
+        toast('Erro ao salvar: ' + (err.message || 'verifique as regras do Firestore'));
+      }
     }
 
     btnPublicar.disabled = false;
