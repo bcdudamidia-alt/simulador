@@ -1,0 +1,1310 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aprovador de Conteúdo - Instagram</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --primaria: #6C63FF;
+  --primaria-hover: #5A52D5;
+  --aprovado: #22C55E;
+  --aprovado-bg: #DCFCE7;
+  --reprovado: #EF4444;
+  --reprovado-bg: #FEE2E2;
+  --pendente: #F59E0B;
+  --pendente-bg: #FEF3C7;
+  --fundo: #F3F4F6;
+  --cartao: #FFFFFF;
+  --texto: #1F2937;
+  --texto-sec: #6B7280;
+  --borda: #E5E7EB;
+  --raio: 12px;
+  --sombra: 0 1px 3px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.04);
+  --fonte: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+body {
+  font-family: var(--fonte);
+  background: var(--fundo);
+  color: var(--texto);
+  min-height: 100vh;
+}
+
+/* ===== HEADER ===== */
+.header {
+  background: var(--cartao);
+  border-bottom: 1px solid var(--borda);
+  padding: 0 20px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.header-inner {
+  max-width: 960px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 60px;
+  gap: 12px;
+}
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--primaria);
+  white-space: nowrap;
+}
+.logo svg { flex-shrink: 0; }
+.nav-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--fundo);
+  border-radius: 8px;
+  padding: 3px;
+}
+.nav-tab {
+  padding: 7px 18px;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--texto-sec);
+  transition: all 0.2s;
+  font-family: var(--fonte);
+}
+.nav-tab.active {
+  background: var(--cartao);
+  color: var(--primaria);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.nav-tab:hover:not(.active) { color: var(--texto); }
+
+/* ===== MAIN ===== */
+.main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 20px 60px;
+}
+
+/* ===== ADMIN VIEW ===== */
+.vista { display: none; }
+.vista.ativa { display: block; }
+
+.form-card {
+  background: var(--cartao);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra);
+  padding: 28px;
+  margin-bottom: 28px;
+}
+.form-card h2 {
+  font-size: 20px;
+  margin-bottom: 20px;
+  color: var(--texto);
+}
+.form-grupo { margin-bottom: 18px; }
+.form-grupo label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--texto);
+}
+.tipo-selector {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tipo-btn {
+  padding: 8px 20px;
+  border: 2px solid var(--borda);
+  background: var(--cartao);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--texto-sec);
+  transition: all 0.2s;
+  font-family: var(--fonte);
+}
+.tipo-btn.selected {
+  border-color: var(--primaria);
+  color: var(--primaria);
+  background: #F0EFFF;
+}
+.tipo-btn:hover:not(.selected) { border-color: #D1D5DB; }
+
+.drop-zone {
+  border: 2px dashed var(--borda);
+  border-radius: var(--raio);
+  padding: 40px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: var(--texto-sec);
+  position: relative;
+}
+.drop-zone:hover, .drop-zone.dragover {
+  border-color: var(--primaria);
+  background: #F8F7FF;
+  color: var(--primaria);
+}
+.drop-zone svg { margin-bottom: 8px; }
+.drop-zone p { font-size: 14px; }
+.drop-zone small { font-size: 12px; color: var(--texto-sec); }
+.drop-zone input { display: none; }
+
+.preview-grid {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.preview-item {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--borda);
+}
+.preview-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.preview-item .remover-img {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.campo-texto {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: var(--fonte);
+  resize: vertical;
+  min-height: 80px;
+  transition: border-color 0.2s;
+  color: var(--texto);
+}
+.campo-texto:focus { outline: none; border-color: var(--primaria); }
+.char-count {
+  text-align: right;
+  font-size: 12px;
+  color: var(--texto-sec);
+  margin-top: 4px;
+}
+
+.btn {
+  padding: 10px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: var(--fonte);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn:active { transform: scale(0.97); }
+.btn-primario { background: var(--primaria); color: #fff; }
+.btn-primario:hover { background: var(--primaria-hover); }
+.btn-danger { background: var(--reprovado); color: #fff; }
+.btn-danger:hover { background: #DC2626; }
+.btn-outline {
+  background: none;
+  border: 1px solid var(--borda);
+  color: var(--texto-sec);
+}
+.btn-outline:hover { background: var(--fundo); }
+
+/* ===== FILTROS ===== */
+.filtros-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.filtros-bar h2 { font-size: 20px; }
+.filtros {
+  display: flex;
+  gap: 4px;
+  background: var(--fundo);
+  border-radius: 8px;
+  padding: 3px;
+}
+.filtro-btn {
+  padding: 6px 14px;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--texto-sec);
+  font-family: var(--fonte);
+  transition: all 0.2s;
+}
+.filtro-btn.active {
+  background: var(--cartao);
+  color: var(--texto);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+/* ===== ADMIN POST GRID ===== */
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+.admin-post-card {
+  background: var(--cartao);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra);
+  overflow: hidden;
+  transition: box-shadow 0.2s;
+}
+.admin-post-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.1); }
+.admin-post-thumb {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  display: block;
+}
+.admin-post-thumb.story { aspect-ratio: 9/16; max-height: 300px; }
+.admin-post-info { padding: 14px; }
+.admin-post-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.badge {
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.badge-feed { background: #EEF2FF; color: #4F46E5; }
+.badge-carrossel { background: #FDF4FF; color: #A855F7; }
+.badge-story { background: #FFF7ED; color: #EA580C; }
+.badge-pendente { background: var(--pendente-bg); color: #B45309; }
+.badge-aprovado { background: var(--aprovado-bg); color: #16A34A; }
+.badge-reprovado { background: var(--reprovado-bg); color: #DC2626; }
+
+.admin-post-legenda {
+  font-size: 13px;
+  color: var(--texto-sec);
+  margin-bottom: 10px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.admin-post-actions {
+  display: flex;
+  gap: 8px;
+}
+.admin-post-actions .btn { font-size: 12px; padding: 6px 12px; }
+
+/* ===== CLIENT VIEW ===== */
+.feed-container {
+  max-width: 520px;
+  margin: 0 auto;
+}
+.post-card {
+  background: var(--cartao);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra);
+  margin-bottom: 24px;
+  overflow: hidden;
+}
+.post-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+}
+.post-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.post-tipo-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+.post-tipo-icon.feed-icon { background: #EEF2FF; }
+.post-tipo-icon.carrossel-icon { background: #FDF4FF; }
+.post-tipo-icon.story-icon { background: #FFF7ED; }
+.post-header-info { font-size: 13px; }
+.post-header-info strong { display: block; font-size: 14px; }
+.post-header-info span { color: var(--texto-sec); }
+
+/* Carousel */
+.carrossel-wrapper { position: relative; }
+.carrossel-track {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.carrossel-track::-webkit-scrollbar { display: none; }
+.carrossel-slide {
+  flex: 0 0 100%;
+  scroll-snap-align: start;
+}
+.carrossel-slide img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  display: block;
+  cursor: pointer;
+}
+.carrossel-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.9);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  z-index: 2;
+  font-size: 14px;
+  color: var(--texto);
+  transition: opacity 0.2s;
+}
+.carrossel-arrow.prev { left: 10px; }
+.carrossel-arrow.next { right: 10px; }
+.carrossel-arrow:hover { background: #fff; }
+.carrossel-dots {
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+  padding: 10px 0;
+}
+.carrossel-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--borda);
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.2s;
+}
+.carrossel-dot.active {
+  background: var(--primaria);
+  width: 18px;
+  border-radius: 3px;
+}
+
+/* Single image */
+.post-imagem {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  display: block;
+  cursor: pointer;
+}
+.post-imagem.story-img { aspect-ratio: 9/16; }
+
+/* Caption / legend */
+.post-legenda {
+  padding: 14px 16px;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border-bottom: 1px solid var(--borda);
+}
+
+/* Comments */
+.comentarios-section { padding: 14px 16px; }
+.comentarios-titulo {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--texto-sec);
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.comentario-item {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.comentario-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--fundo);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--primaria);
+  flex-shrink: 0;
+}
+.comentario-body { flex: 1; }
+.comentario-body strong { font-size: 13px; }
+.comentario-body p {
+  font-size: 13px;
+  margin-top: 2px;
+  color: var(--texto);
+  line-height: 1.4;
+}
+.comentario-body time {
+  font-size: 11px;
+  color: var(--texto-sec);
+}
+.comentario-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.comentario-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--borda);
+  border-radius: 20px;
+  font-size: 13px;
+  font-family: var(--fonte);
+  color: var(--texto);
+}
+.comentario-input:focus { outline: none; border-color: var(--primaria); }
+.comentario-enviar {
+  padding: 8px 16px;
+  border: none;
+  background: var(--primaria);
+  color: #fff;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--fonte);
+  white-space: nowrap;
+}
+.comentario-enviar:hover { background: var(--primaria-hover); }
+
+/* Approval section */
+.aprovacao-section {
+  padding: 14px 16px;
+  border-top: 1px solid var(--borda);
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.btn-aprovar {
+  flex: 1;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--fonte);
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 140px;
+}
+.btn-aprovar:active { transform: scale(0.97); }
+.btn-aprovar.aprovar { background: var(--aprovado); color: #fff; }
+.btn-aprovar.aprovar:hover { background: #16A34A; }
+.btn-aprovar.rejeitar { background: var(--reprovado-bg); color: var(--reprovado); }
+.btn-aprovar.rejeitar:hover { background: #FECACA; }
+.status-aprovado {
+  width: 100%;
+  text-align: center;
+  padding: 12px;
+  background: var(--aprovado-bg);
+  color: #16A34A;
+  font-weight: 600;
+  font-size: 14px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.status-reprovado {
+  width: 100%;
+  text-align: center;
+  padding: 12px;
+  background: var(--reprovado-bg);
+  color: #DC2626;
+  font-weight: 600;
+  font-size: 14px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* ===== LIGHTBOX ===== */
+.lightbox {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.9);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+  cursor: zoom-out;
+}
+.lightbox.aberta { display: flex; }
+.lightbox img {
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 4px;
+}
+.lightbox-fechar {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  width: 40px;
+  height: 40px;
+  background: rgba(255,255,255,0.15);
+  border: none;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 22px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ===== TOAST ===== */
+.toast-container {
+  position: fixed;
+  top: 72px;
+  right: 20px;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.toast {
+  background: var(--cartao);
+  padding: 12px 18px;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: toastIn 0.3s ease;
+  max-width: 320px;
+}
+.toast.saindo { animation: toastOut 0.3s ease forwards; }
+@keyframes toastIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes toastOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(40px); } }
+
+/* ===== EMPTY STATE ===== */
+.vazio {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--texto-sec);
+}
+.vazio svg { margin-bottom: 12px; opacity: 0.5; }
+.vazio p { font-size: 15px; }
+.vazio small { font-size: 13px; }
+
+/* ===== DATA ACTIONS ===== */
+.data-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 640px) {
+  .header-inner { height: 54px; }
+  .logo span { display: none; }
+  .nav-tab { padding: 6px 12px; font-size: 13px; }
+  .form-card { padding: 18px; }
+  .admin-grid { grid-template-columns: 1fr; }
+  .main { padding: 16px 12px 40px; }
+  .aprovacao-section { flex-direction: column; }
+  .btn-aprovar { min-width: unset; }
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="header-inner">
+    <div class="logo">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5"/></svg>
+      <span>Aprovador de Conteúdo</span>
+    </div>
+    <nav class="nav-tabs">
+      <button class="nav-tab active" data-vista="admin">Gerenciar</button>
+      <button class="nav-tab" data-vista="cliente">Visualizar</button>
+    </nav>
+  </div>
+</header>
+
+<main class="main">
+  <!-- ===== ADMIN VIEW ===== -->
+  <section id="vista-admin" class="vista ativa">
+
+    <div class="form-card">
+      <h2>Novo Post</h2>
+
+      <div class="form-grupo">
+        <label>Tipo</label>
+        <div class="tipo-selector">
+          <button class="tipo-btn selected" data-tipo="feed">Feed</button>
+          <button class="tipo-btn" data-tipo="carrossel">Carrossel</button>
+          <button class="tipo-btn" data-tipo="story">Story</button>
+        </div>
+      </div>
+
+      <div class="form-grupo">
+        <label>Imagens</label>
+        <div class="drop-zone" id="drop-zone">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <p>Arraste imagens aqui ou clique para selecionar</p>
+          <small id="drop-zone-hint">Formatos: JPG, PNG, WEBP</small>
+          <input type="file" id="file-input" accept="image/*" multiple>
+        </div>
+        <div class="preview-grid" id="preview-grid"></div>
+      </div>
+
+      <div class="form-grupo">
+        <label>Legenda</label>
+        <textarea class="campo-texto" id="legenda-input" placeholder="Escreva a legenda do post..." maxlength="2200"></textarea>
+        <div class="char-count"><span id="char-count">0</span> / 2.200</div>
+      </div>
+
+      <button class="btn btn-primario" id="btn-publicar">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Adicionar Post
+      </button>
+    </div>
+
+    <div class="filtros-bar">
+      <h2>Posts</h2>
+      <div class="filtros">
+        <button class="filtro-btn active" data-filtro="todos">Todos</button>
+        <button class="filtro-btn" data-filtro="pendente">Pendentes</button>
+        <button class="filtro-btn" data-filtro="aprovado">Aprovados</button>
+        <button class="filtro-btn" data-filtro="reprovado">Alterações</button>
+      </div>
+    </div>
+
+    <div class="data-actions">
+      <button class="btn btn-outline" id="btn-exportar">Exportar Dados</button>
+      <button class="btn btn-outline" id="btn-importar">Importar Dados</button>
+      <input type="file" id="importar-input" accept=".json" style="display:none">
+    </div>
+
+    <div class="admin-grid" id="admin-grid"></div>
+    <div class="vazio" id="admin-vazio" style="display:none">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+      <p>Nenhum post ainda</p>
+      <small>Adicione seu primeiro post usando o formulário acima</small>
+    </div>
+  </section>
+
+  <!-- ===== CLIENT VIEW ===== -->
+  <section id="vista-cliente" class="vista">
+    <div class="feed-container" id="feed-container"></div>
+    <div class="vazio" id="cliente-vazio" style="display:none">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+      <p>Nenhum post para revisar</p>
+      <small>Os posts aparecerão aqui quando forem adicionados</small>
+    </div>
+  </section>
+</main>
+
+<!-- LIGHTBOX -->
+<div class="lightbox" id="lightbox">
+  <button class="lightbox-fechar">&times;</button>
+  <img src="" alt="Visualização ampliada" id="lightbox-img">
+</div>
+
+<!-- TOASTS -->
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+(function() {
+  'use strict';
+
+  const STORAGE_KEY = 'aprovador_posts';
+
+  // ===== DATA LAYER =====
+  function carregarPosts() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+    } catch { return []; }
+  }
+
+  function salvarPosts(posts) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(posts));
+  }
+
+  function gerarId() {
+    return 'post_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+  }
+
+  // ===== IMAGE PROCESSING =====
+  function processarImagem(file, maxW, maxH) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+          const canvas = document.createElement('canvas');
+          let w = img.width, h = img.height;
+          if (w > maxW) { h = h * (maxW / w); w = maxW; }
+          if (h > maxH) { w = w * (maxH / h); h = maxH; }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', 0.7));
+        };
+        img.onerror = reject;
+        img.src = e.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // ===== STATE =====
+  let tipoSelecionado = 'feed';
+  let imagensPreview = [];
+  let filtroAtual = 'todos';
+  let editandoId = null;
+
+  // ===== DOM REFS =====
+  const dropZone = document.getElementById('drop-zone');
+  const fileInput = document.getElementById('file-input');
+  const previewGrid = document.getElementById('preview-grid');
+  const legendaInput = document.getElementById('legenda-input');
+  const charCount = document.getElementById('char-count');
+  const btnPublicar = document.getElementById('btn-publicar');
+  const adminGrid = document.getElementById('admin-grid');
+  const adminVazio = document.getElementById('admin-vazio');
+  const feedContainer = document.getElementById('feed-container');
+  const clienteVazio = document.getElementById('cliente-vazio');
+  const lightbox = document.getElementById('lightbox');
+  const lightboxImg = document.getElementById('lightbox-img');
+  const toastContainer = document.getElementById('toast-container');
+
+  // ===== NAVIGATION =====
+  document.querySelectorAll('.nav-tab').forEach(tab => {
+    tab.addEventListener('click', function() {
+      document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+      this.classList.add('active');
+      const vista = this.dataset.vista;
+      document.querySelectorAll('.vista').forEach(v => v.classList.remove('ativa'));
+      document.getElementById('vista-' + vista).classList.add('ativa');
+      if (vista === 'cliente') renderizarCliente();
+    });
+  });
+
+  // ===== TYPE SELECTOR =====
+  document.querySelectorAll('.tipo-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.tipo-btn').forEach(b => b.classList.remove('selected'));
+      this.classList.add('selected');
+      tipoSelecionado = this.dataset.tipo;
+      const hint = document.getElementById('drop-zone-hint');
+      if (tipoSelecionado === 'feed') {
+        hint.textContent = 'Formatos: JPG, PNG, WEBP';
+        fileInput.removeAttribute('multiple');
+      } else if (tipoSelecionado === 'carrossel') {
+        hint.textContent = 'Selecione até 10 imagens para o carrossel';
+        fileInput.setAttribute('multiple', '');
+      } else {
+        hint.textContent = 'Formato vertical (9:16) recomendado';
+        fileInput.removeAttribute('multiple');
+      }
+    });
+  });
+
+  // ===== FILE HANDLING =====
+  dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    handleFiles(e.dataTransfer.files);
+  });
+  fileInput.addEventListener('change', e => {
+    handleFiles(e.target.files);
+    fileInput.value = '';
+  });
+
+  async function handleFiles(files) {
+    const maxImages = tipoSelecionado === 'carrossel' ? 10 : 1;
+    if (tipoSelecionado !== 'carrossel') imagensPreview = [];
+
+    for (let i = 0; i < files.length && imagensPreview.length < maxImages; i++) {
+      if (!files[i].type.startsWith('image/')) continue;
+      const maxW = 1080;
+      const maxH = tipoSelecionado === 'story' ? 1920 : 1080;
+      try {
+        const base64 = await processarImagem(files[i], maxW, maxH);
+        imagensPreview.push(base64);
+      } catch { toast('Erro ao processar imagem'); }
+    }
+    if (files.length > 0 && imagensPreview.length >= maxImages && tipoSelecionado !== 'carrossel') {
+      // ok
+    }
+    renderizarPreviews();
+  }
+
+  function renderizarPreviews() {
+    previewGrid.innerHTML = '';
+    imagensPreview.forEach((src, i) => {
+      const div = document.createElement('div');
+      div.className = 'preview-item';
+      div.innerHTML = `<img src="${src}" alt="Preview"><button class="remover-img" data-idx="${i}">&times;</button>`;
+      previewGrid.appendChild(div);
+    });
+  }
+
+  previewGrid.addEventListener('click', e => {
+    const btn = e.target.closest('.remover-img');
+    if (!btn) return;
+    imagensPreview.splice(parseInt(btn.dataset.idx), 1);
+    renderizarPreviews();
+  });
+
+  // ===== CHAR COUNT =====
+  legendaInput.addEventListener('input', () => {
+    charCount.textContent = legendaInput.value.length.toLocaleString('pt-BR');
+  });
+
+  // ===== PUBLISH =====
+  btnPublicar.addEventListener('click', () => {
+    if (imagensPreview.length === 0) {
+      toast('Adicione pelo menos uma imagem');
+      return;
+    }
+
+    const posts = carregarPosts();
+
+    if (editandoId) {
+      const idx = posts.findIndex(p => p.id === editandoId);
+      if (idx !== -1) {
+        posts[idx].tipo = tipoSelecionado;
+        posts[idx].imagens = [...imagensPreview];
+        posts[idx].legenda = legendaInput.value.trim();
+      }
+      editandoId = null;
+      btnPublicar.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Adicionar Post';
+      toast('Post atualizado!');
+    } else {
+      const post = {
+        id: gerarId(),
+        tipo: tipoSelecionado,
+        imagens: [...imagensPreview],
+        legenda: legendaInput.value.trim(),
+        status: 'pendente',
+        comentarios: [],
+        dataCriacao: new Date().toISOString()
+      };
+      posts.unshift(post);
+      toast('Post adicionado!');
+    }
+
+    salvarPosts(posts);
+    imagensPreview = [];
+    previewGrid.innerHTML = '';
+    legendaInput.value = '';
+    charCount.textContent = '0';
+    renderizarAdmin();
+  });
+
+  // ===== FILTERS =====
+  document.querySelectorAll('.filtro-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.filtro-btn').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      filtroAtual = this.dataset.filtro;
+      renderizarAdmin();
+    });
+  });
+
+  // ===== ADMIN RENDER =====
+  function renderizarAdmin() {
+    let posts = carregarPosts();
+    if (filtroAtual !== 'todos') {
+      posts = posts.filter(p => p.status === filtroAtual);
+    }
+
+    if (posts.length === 0) {
+      adminGrid.innerHTML = '';
+      adminVazio.style.display = 'block';
+      return;
+    }
+    adminVazio.style.display = 'none';
+
+    adminGrid.innerHTML = posts.map(post => {
+      const tipoLabel = post.tipo === 'carrossel' ? 'Carrossel' : post.tipo === 'story' ? 'Story' : 'Feed';
+      const statusLabel = post.status === 'aprovado' ? 'Aprovado' : post.status === 'reprovado' ? 'Alteração Solicitada' : 'Pendente';
+      const thumbClass = post.tipo === 'story' ? 'admin-post-thumb story' : 'admin-post-thumb';
+      const comentariosCount = post.comentarios ? post.comentarios.length : 0;
+
+      return `
+        <div class="admin-post-card">
+          <img src="${post.imagens[0]}" alt="Post" class="${thumbClass}">
+          <div class="admin-post-info">
+            <div class="admin-post-meta">
+              <span class="badge badge-${post.tipo}">${tipoLabel}</span>
+              <span class="badge badge-${post.status}">${statusLabel}</span>
+              ${post.imagens.length > 1 ? `<span style="font-size:12px;color:var(--texto-sec)">${post.imagens.length} imgs</span>` : ''}
+            </div>
+            ${post.legenda ? `<p class="admin-post-legenda">${escapeHtml(post.legenda)}</p>` : '<p class="admin-post-legenda" style="font-style:italic">Sem legenda</p>'}
+            ${comentariosCount > 0 ? `<p style="font-size:12px;color:var(--texto-sec);margin-bottom:10px">${comentariosCount} comentário${comentariosCount > 1 ? 's' : ''}</p>` : ''}
+            <div class="admin-post-actions">
+              <button class="btn btn-outline" data-action="editar" data-id="${post.id}">Editar</button>
+              <button class="btn btn-danger" data-action="excluir" data-id="${post.id}">Excluir</button>
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  adminGrid.addEventListener('click', e => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const action = btn.dataset.action;
+    const id = btn.dataset.id;
+
+    if (action === 'excluir') {
+      if (!confirm('Tem certeza que deseja excluir este post?')) return;
+      const posts = carregarPosts().filter(p => p.id !== id);
+      salvarPosts(posts);
+      renderizarAdmin();
+      toast('Post excluído');
+    }
+
+    if (action === 'editar') {
+      const posts = carregarPosts();
+      const post = posts.find(p => p.id === id);
+      if (!post) return;
+      editandoId = id;
+      tipoSelecionado = post.tipo;
+      document.querySelectorAll('.tipo-btn').forEach(b => {
+        b.classList.toggle('selected', b.dataset.tipo === post.tipo);
+      });
+      imagensPreview = [...post.imagens];
+      renderizarPreviews();
+      legendaInput.value = post.legenda || '';
+      charCount.textContent = legendaInput.value.length.toLocaleString('pt-BR');
+      btnPublicar.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 114 4L7.5 20.5 2 22l1.5-5.5z"/></svg> Salvar Alterações';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  });
+
+  // ===== CLIENT RENDER =====
+  function renderizarCliente() {
+    const posts = carregarPosts();
+    if (posts.length === 0) {
+      feedContainer.innerHTML = '';
+      clienteVazio.style.display = 'block';
+      return;
+    }
+    clienteVazio.style.display = 'none';
+
+    feedContainer.innerHTML = posts.map(post => {
+      const tipoLabel = post.tipo === 'carrossel' ? 'Carrossel' : post.tipo === 'story' ? 'Story' : 'Feed';
+      const tipoIcon = post.tipo === 'carrossel' ? '&#9641;&#9641;' : post.tipo === 'story' ? '&#9679;' : '&#9632;';
+      const iconClass = post.tipo + '-icon';
+      const data = new Date(post.dataCriacao).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+
+      let imagemHtml = '';
+      if (post.tipo === 'carrossel' && post.imagens.length > 1) {
+        imagemHtml = `
+          <div class="carrossel-wrapper" data-post-id="${post.id}">
+            <div class="carrossel-track" data-track="${post.id}">
+              ${post.imagens.map((img, i) => `<div class="carrossel-slide"><img src="${img}" alt="Slide ${i+1}" data-action="zoom" data-src="${img}"></div>`).join('')}
+            </div>
+            <button class="carrossel-arrow prev" data-carousel="${post.id}" data-dir="-1">&#8249;</button>
+            <button class="carrossel-arrow next" data-carousel="${post.id}" data-dir="1">&#8250;</button>
+            <div class="carrossel-dots" data-dots="${post.id}">
+              ${post.imagens.map((_, i) => `<button class="carrossel-dot${i === 0 ? ' active' : ''}" data-carousel="${post.id}" data-slide="${i}"></button>`).join('')}
+            </div>
+          </div>`;
+      } else if (post.tipo === 'story') {
+        imagemHtml = `<img src="${post.imagens[0]}" alt="Story" class="post-imagem story-img" data-action="zoom" data-src="${post.imagens[0]}">`;
+      } else {
+        imagemHtml = `<img src="${post.imagens[0]}" alt="Post" class="post-imagem" data-action="zoom" data-src="${post.imagens[0]}">`;
+      }
+
+      let statusHtml = '';
+      if (post.status === 'aprovado') {
+        statusHtml = `<div class="status-aprovado"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Aprovado</div>
+        <button class="btn-aprovar rejeitar" data-action="reprovar" data-id="${post.id}">Desfazer</button>`;
+      } else if (post.status === 'reprovado') {
+        statusHtml = `<div class="status-reprovado"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Alteração Solicitada</div>
+        <button class="btn-aprovar aprovar" data-action="aprovar" data-id="${post.id}">Aprovar</button>`;
+      } else {
+        statusHtml = `
+          <button class="btn-aprovar aprovar" data-action="aprovar" data-id="${post.id}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            Aprovar
+          </button>
+          <button class="btn-aprovar rejeitar" data-action="reprovar" data-id="${post.id}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            Solicitar Alteração
+          </button>`;
+      }
+
+      const comentariosHtml = (post.comentarios || []).map(c => {
+        const hora = new Date(c.dataHora).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+        return `
+          <div class="comentario-item">
+            <div class="comentario-avatar">${c.autor.charAt(0).toUpperCase()}</div>
+            <div class="comentario-body">
+              <strong>${escapeHtml(c.autor)}</strong> <time>${hora}</time>
+              <p>${escapeHtml(c.texto)}</p>
+            </div>
+          </div>`;
+      }).join('');
+
+      return `
+        <div class="post-card" data-post-card="${post.id}">
+          <div class="post-header">
+            <div class="post-header-left">
+              <div class="post-tipo-icon ${iconClass}">${tipoIcon}</div>
+              <div class="post-header-info">
+                <strong>${tipoLabel}</strong>
+                <span>${data}</span>
+              </div>
+            </div>
+            <span class="badge badge-${post.status}">${post.status === 'aprovado' ? 'Aprovado' : post.status === 'reprovado' ? 'Alteração' : 'Pendente'}</span>
+          </div>
+          ${imagemHtml}
+          ${post.legenda ? `<div class="post-legenda">${escapeHtml(post.legenda)}</div>` : ''}
+          <div class="comentarios-section">
+            <div class="comentarios-titulo">Comentários${post.comentarios && post.comentarios.length > 0 ? ` (${post.comentarios.length})` : ''}</div>
+            ${comentariosHtml}
+            <form class="comentario-form" data-form-post="${post.id}">
+              <input class="comentario-input" placeholder="Escreva um comentário..." required>
+              <button type="submit" class="comentario-enviar">Enviar</button>
+            </form>
+          </div>
+          <div class="aprovacao-section">
+            ${statusHtml}
+          </div>
+        </div>`;
+    }).join('');
+
+    inicializarCarrosseis();
+  }
+
+  // ===== CLIENT EVENTS (delegation) =====
+  feedContainer.addEventListener('click', e => {
+    const target = e.target.closest('[data-action]');
+    if (!target) return;
+    const action = target.dataset.action;
+
+    if (action === 'aprovar' || action === 'reprovar') {
+      const id = target.dataset.id;
+      const posts = carregarPosts();
+      const post = posts.find(p => p.id === id);
+      if (!post) return;
+      post.status = action === 'aprovar' ? 'aprovado' : 'reprovado';
+      salvarPosts(posts);
+      renderizarCliente();
+      toast(action === 'aprovar' ? 'Post aprovado!' : 'Alteração solicitada');
+    }
+
+    if (action === 'zoom') {
+      lightboxImg.src = target.dataset.src;
+      lightbox.classList.add('aberta');
+    }
+  });
+
+  feedContainer.addEventListener('submit', e => {
+    if (!e.target.matches('[data-form-post]')) return;
+    e.preventDefault();
+    const postId = e.target.dataset.formPost;
+    const input = e.target.querySelector('.comentario-input');
+    const texto = input.value.trim();
+    if (!texto) return;
+
+    const posts = carregarPosts();
+    const post = posts.find(p => p.id === postId);
+    if (!post) return;
+
+    if (!post.comentarios) post.comentarios = [];
+    post.comentarios.push({
+      id: 'com_' + Date.now(),
+      autor: 'Cliente',
+      texto: texto,
+      dataHora: new Date().toISOString()
+    });
+    salvarPosts(posts);
+    renderizarCliente();
+    toast('Comentário adicionado');
+  });
+
+  // ===== CAROUSEL LOGIC =====
+  function inicializarCarrosseis() {
+    document.querySelectorAll('.carrossel-arrow').forEach(arrow => {
+      arrow.addEventListener('click', e => {
+        e.stopPropagation();
+        const postId = arrow.dataset.carousel;
+        const dir = parseInt(arrow.dataset.dir);
+        const track = document.querySelector(`[data-track="${postId}"]`);
+        if (!track) return;
+        const slideW = track.offsetWidth;
+        track.scrollBy({ left: slideW * dir, behavior: 'smooth' });
+      });
+    });
+
+    document.querySelectorAll('.carrossel-dot').forEach(dot => {
+      dot.addEventListener('click', e => {
+        e.stopPropagation();
+        const postId = dot.dataset.carousel;
+        const slideIdx = parseInt(dot.dataset.slide);
+        const track = document.querySelector(`[data-track="${postId}"]`);
+        if (!track) return;
+        const slideW = track.offsetWidth;
+        track.scrollTo({ left: slideW * slideIdx, behavior: 'smooth' });
+      });
+    });
+
+    document.querySelectorAll('.carrossel-track').forEach(track => {
+      track.addEventListener('scroll', () => {
+        const postId = track.dataset.track;
+        const slideW = track.offsetWidth;
+        const idx = Math.round(track.scrollLeft / slideW);
+        const dots = document.querySelectorAll(`[data-dots="${postId}"] .carrossel-dot`);
+        dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+      });
+    });
+  }
+
+  // ===== LIGHTBOX =====
+  lightbox.addEventListener('click', e => {
+    if (e.target === lightbox || e.target.classList.contains('lightbox-fechar')) {
+      lightbox.classList.remove('aberta');
+    }
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') lightbox.classList.remove('aberta');
+  });
+
+  // ===== EXPORT / IMPORT =====
+  document.getElementById('btn-exportar').addEventListener('click', () => {
+    const posts = carregarPosts();
+    if (posts.length === 0) { toast('Nenhum post para exportar'); return; }
+    const blob = new Blob([JSON.stringify(posts, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'aprovador-posts-' + new Date().toISOString().slice(0, 10) + '.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('Dados exportados!');
+  });
+
+  document.getElementById('btn-importar').addEventListener('click', () => {
+    document.getElementById('importar-input').click();
+  });
+
+  document.getElementById('importar-input').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (!Array.isArray(data)) throw new Error('Formato inválido');
+        salvarPosts(data);
+        renderizarAdmin();
+        toast('Dados importados! (' + data.length + ' posts)');
+      } catch { toast('Erro: arquivo inválido'); }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  });
+
+  // ===== TOAST =====
+  function toast(msg) {
+    const div = document.createElement('div');
+    div.className = 'toast';
+    div.textContent = msg;
+    toastContainer.appendChild(div);
+    setTimeout(() => {
+      div.classList.add('saindo');
+      setTimeout(() => div.remove(), 300);
+    }, 2500);
+  }
+
+  // ===== UTILS =====
+  function escapeHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  // ===== INIT =====
+  renderizarAdmin();
+})();
+</script>
+</body>
+</html>
