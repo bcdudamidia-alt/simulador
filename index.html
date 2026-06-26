@@ -234,8 +234,9 @@ body {
   gap: 6px;
 }
 .btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .btn-primario { background: var(--primaria); color: #fff; }
-.btn-primario:hover { background: var(--primaria-hover); }
+.btn-primario:hover:not(:disabled) { background: var(--primaria-hover); }
 .btn-danger { background: var(--reprovado); color: #fff; }
 .btn-danger:hover { background: #DC2626; }
 .btn-outline {
@@ -244,6 +245,30 @@ body {
   color: var(--texto-sec);
 }
 .btn-outline:hover { background: var(--fundo); }
+
+/* ===== LOADING ===== */
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(255,255,255,0.8);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 12px;
+}
+.loading-overlay.hidden { display: none; }
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--borda);
+  border-top-color: var(--primaria);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { font-size: 14px; color: var(--texto-sec); }
 
 /* ===== FILTROS ===== */
 .filtros-bar {
@@ -660,12 +685,30 @@ body {
 .vazio p { font-size: 15px; }
 .vazio small { font-size: 13px; }
 
-/* ===== DATA ACTIONS ===== */
-.data-actions {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
+/* ===== PROGRESS ===== */
+.upload-progress {
+  margin-top: 10px;
+  display: none;
+}
+.upload-progress.active { display: block; }
+.progress-bar {
+  width: 100%;
+  height: 6px;
+  background: var(--borda);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--primaria);
+  border-radius: 3px;
+  transition: width 0.3s;
+  width: 0%;
+}
+.progress-text {
+  font-size: 12px;
+  color: var(--texto-sec);
+  margin-top: 4px;
 }
 
 /* ===== RESPONSIVE ===== */
@@ -682,6 +725,12 @@ body {
 </style>
 </head>
 <body>
+
+<!-- LOADING -->
+<div class="loading-overlay" id="loading">
+  <div class="spinner"></div>
+  <div class="loading-text">Carregando...</div>
+</div>
 
 <!-- HEADER -->
 <header class="header">
@@ -722,6 +771,10 @@ body {
           <input type="file" id="file-input" accept="image/*" multiple>
         </div>
         <div class="preview-grid" id="preview-grid"></div>
+        <div class="upload-progress" id="upload-progress">
+          <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+          <div class="progress-text" id="progress-text">Enviando...</div>
+        </div>
       </div>
 
       <div class="form-grupo">
@@ -744,12 +797,6 @@ body {
         <button class="filtro-btn" data-filtro="aprovado">Aprovados</button>
         <button class="filtro-btn" data-filtro="reprovado">Alterações</button>
       </div>
-    </div>
-
-    <div class="data-actions">
-      <button class="btn btn-outline" id="btn-exportar">Exportar Dados</button>
-      <button class="btn btn-outline" id="btn-importar">Importar Dados</button>
-      <input type="file" id="importar-input" accept=".json" style="display:none">
     </div>
 
     <div class="admin-grid" id="admin-grid"></div>
@@ -780,57 +827,37 @@ body {
 <!-- TOASTS -->
 <div class="toast-container" id="toast-container"></div>
 
+<!-- FIREBASE SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+
 <script>
 (function() {
   'use strict';
 
-  const STORAGE_KEY = 'aprovador_posts';
+  // ===== FIREBASE CONFIG =====
+  firebase.initializeApp({
+    apiKey: "AIzaSyBwF9gNODOJcFx_jHMQWunZf51xuCEZhFg",
+    authDomain: "promedice-30e63.firebaseapp.com",
+    projectId: "promedice-30e63",
+    storageBucket: "promedice-30e63.firebasestorage.app",
+    messagingSenderId: "319213960664",
+    appId: "1:319213960664:web:c72ba5e08c447936fe86ad"
+  });
 
-  // ===== DATA LAYER =====
-  function carregarPosts() {
-    try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-    } catch { return []; }
-  }
-
-  function salvarPosts(posts) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(posts));
-  }
-
-  function gerarId() {
-    return 'post_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
-  }
-
-  // ===== IMAGE PROCESSING =====
-  function processarImagem(file, maxW, maxH) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        const img = new Image();
-        img.onload = function() {
-          const canvas = document.createElement('canvas');
-          let w = img.width, h = img.height;
-          if (w > maxW) { h = h * (maxW / w); w = maxW; }
-          if (h > maxH) { w = w * (maxH / h); h = maxH; }
-          canvas.width = w;
-          canvas.height = h;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, w, h);
-          resolve(canvas.toDataURL('image/jpeg', 0.7));
-        };
-        img.onerror = reject;
-        img.src = e.target.result;
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  }
+  const db = firebase.firestore();
+  const storage = firebase.storage();
+  const postsCol = db.collection('posts');
 
   // ===== STATE =====
+  let postsCache = [];
   let tipoSelecionado = 'feed';
-  let imagensPreview = [];
+  let arquivosParaUpload = [];
+  let imagensPreviewLocal = [];
   let filtroAtual = 'todos';
   let editandoId = null;
+  let vistaAtual = 'admin';
 
   // ===== DOM REFS =====
   const dropZone = document.getElementById('drop-zone');
@@ -846,16 +873,65 @@ body {
   const lightbox = document.getElementById('lightbox');
   const lightboxImg = document.getElementById('lightbox-img');
   const toastContainer = document.getElementById('toast-container');
+  const loadingOverlay = document.getElementById('loading');
+  const uploadProgress = document.getElementById('upload-progress');
+  const progressFill = document.getElementById('progress-fill');
+  const progressText = document.getElementById('progress-text');
+
+  // ===== REAL-TIME LISTENER =====
+  postsCol.orderBy('dataCriacao', 'desc').onSnapshot(snapshot => {
+    postsCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    loadingOverlay.classList.add('hidden');
+    renderizarAdmin();
+    if (vistaAtual === 'cliente') renderizarCliente();
+  }, err => {
+    console.error('Firestore error:', err);
+    loadingOverlay.classList.add('hidden');
+    toast('Erro ao conectar ao banco de dados');
+  });
+
+  // ===== IMAGE UPLOAD TO FIREBASE STORAGE =====
+  function comprimirImagem(file, maxW, maxH) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+          const canvas = document.createElement('canvas');
+          let w = img.width, h = img.height;
+          if (w > maxW) { h = h * (maxW / w); w = maxW; }
+          if (h > maxH) { w = w * (maxH / h); h = maxH; }
+          canvas.width = w;
+          canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          canvas.toBlob(blob => resolve(blob), 'image/jpeg', 0.75);
+        };
+        img.onerror = reject;
+        img.src = e.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function uploadImagem(file, postId, index) {
+    const maxW = 1080;
+    const maxH = tipoSelecionado === 'story' ? 1920 : 1350;
+    const blob = await comprimirImagem(file, maxW, maxH);
+    const ref = storage.ref(`posts/${postId}/img_${index}_${Date.now()}.jpg`);
+    await ref.put(blob);
+    return await ref.getDownloadURL();
+  }
 
   // ===== NAVIGATION =====
   document.querySelectorAll('.nav-tab').forEach(tab => {
     tab.addEventListener('click', function() {
       document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
       this.classList.add('active');
-      const vista = this.dataset.vista;
+      vistaAtual = this.dataset.vista;
       document.querySelectorAll('.vista').forEach(v => v.classList.remove('ativa'));
-      document.getElementById('vista-' + vista).classList.add('ativa');
-      if (vista === 'cliente') renderizarCliente();
+      document.getElementById('vista-' + vistaAtual).classList.add('ativa');
+      if (vistaAtual === 'cliente') renderizarCliente();
     });
   });
 
@@ -893,31 +969,27 @@ body {
     fileInput.value = '';
   });
 
-  async function handleFiles(files) {
+  function handleFiles(files) {
     const maxImages = tipoSelecionado === 'carrossel' ? 10 : 1;
-    if (tipoSelecionado !== 'carrossel') imagensPreview = [];
-
-    for (let i = 0; i < files.length && imagensPreview.length < maxImages; i++) {
-      if (!files[i].type.startsWith('image/')) continue;
-      const maxW = 1080;
-      const maxH = tipoSelecionado === 'story' ? 1920 : 1080;
-      try {
-        const base64 = await processarImagem(files[i], maxW, maxH);
-        imagensPreview.push(base64);
-      } catch { toast('Erro ao processar imagem'); }
+    if (tipoSelecionado !== 'carrossel') {
+      arquivosParaUpload = [];
+      imagensPreviewLocal = [];
     }
-    if (files.length > 0 && imagensPreview.length >= maxImages && tipoSelecionado !== 'carrossel') {
-      // ok
+
+    for (let i = 0; i < files.length && arquivosParaUpload.length < maxImages; i++) {
+      if (!files[i].type.startsWith('image/')) continue;
+      arquivosParaUpload.push(files[i]);
+      imagensPreviewLocal.push(URL.createObjectURL(files[i]));
     }
     renderizarPreviews();
   }
 
   function renderizarPreviews() {
     previewGrid.innerHTML = '';
-    imagensPreview.forEach((src, i) => {
+    imagensPreviewLocal.forEach((src, i) => {
       const div = document.createElement('div');
       div.className = 'preview-item';
-      div.innerHTML = `<img src="${src}" alt="Preview"><button class="remover-img" data-idx="${i}">&times;</button>`;
+      div.innerHTML = '<img src="' + src + '" alt="Preview"><button class="remover-img" data-idx="' + i + '">&times;</button>';
       previewGrid.appendChild(div);
     });
   }
@@ -925,7 +997,9 @@ body {
   previewGrid.addEventListener('click', e => {
     const btn = e.target.closest('.remover-img');
     if (!btn) return;
-    imagensPreview.splice(parseInt(btn.dataset.idx), 1);
+    const idx = parseInt(btn.dataset.idx);
+    arquivosParaUpload.splice(idx, 1);
+    imagensPreviewLocal.splice(idx, 1);
     renderizarPreviews();
   });
 
@@ -935,44 +1009,77 @@ body {
   });
 
   // ===== PUBLISH =====
-  btnPublicar.addEventListener('click', () => {
-    if (imagensPreview.length === 0) {
+  btnPublicar.addEventListener('click', async () => {
+    if (arquivosParaUpload.length === 0 && !editandoId) {
       toast('Adicione pelo menos uma imagem');
       return;
     }
 
-    const posts = carregarPosts();
+    btnPublicar.disabled = true;
+    uploadProgress.classList.add('active');
 
-    if (editandoId) {
-      const idx = posts.findIndex(p => p.id === editandoId);
-      if (idx !== -1) {
-        posts[idx].tipo = tipoSelecionado;
-        posts[idx].imagens = [...imagensPreview];
-        posts[idx].legenda = legendaInput.value.trim();
+    try {
+      if (editandoId) {
+        let imageUrls = [];
+        if (arquivosParaUpload.length > 0) {
+          const total = arquivosParaUpload.length;
+          for (let i = 0; i < total; i++) {
+            progressText.textContent = 'Enviando imagem ' + (i + 1) + ' de ' + total + '...';
+            progressFill.style.width = ((i + 1) / total * 100) + '%';
+            imageUrls.push(await uploadImagem(arquivosParaUpload[i], editandoId, i));
+          }
+        } else {
+          const existingPost = postsCache.find(p => p.id === editandoId);
+          imageUrls = existingPost ? existingPost.imagens : [];
+        }
+
+        await postsCol.doc(editandoId).update({
+          tipo: tipoSelecionado,
+          imagens: imageUrls,
+          legenda: legendaInput.value.trim()
+        });
+
+        editandoId = null;
+        btnPublicar.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Adicionar Post';
+        toast('Post atualizado!');
+      } else {
+        const docRef = postsCol.doc();
+        const postId = docRef.id;
+        const total = arquivosParaUpload.length;
+        const imageUrls = [];
+
+        for (let i = 0; i < total; i++) {
+          progressText.textContent = 'Enviando imagem ' + (i + 1) + ' de ' + total + '...';
+          progressFill.style.width = ((i + 1) / total * 100) + '%';
+          imageUrls.push(await uploadImagem(arquivosParaUpload[i], postId, i));
+        }
+
+        progressText.textContent = 'Salvando post...';
+        await docRef.set({
+          tipo: tipoSelecionado,
+          imagens: imageUrls,
+          legenda: legendaInput.value.trim(),
+          status: 'pendente',
+          comentarios: [],
+          dataCriacao: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        toast('Post adicionado!');
       }
-      editandoId = null;
-      btnPublicar.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Adicionar Post';
-      toast('Post atualizado!');
-    } else {
-      const post = {
-        id: gerarId(),
-        tipo: tipoSelecionado,
-        imagens: [...imagensPreview],
-        legenda: legendaInput.value.trim(),
-        status: 'pendente',
-        comentarios: [],
-        dataCriacao: new Date().toISOString()
-      };
-      posts.unshift(post);
-      toast('Post adicionado!');
+
+      arquivosParaUpload = [];
+      imagensPreviewLocal = [];
+      previewGrid.innerHTML = '';
+      legendaInput.value = '';
+      charCount.textContent = '0';
+    } catch (err) {
+      console.error('Publish error:', err);
+      toast('Erro ao salvar post');
     }
 
-    salvarPosts(posts);
-    imagensPreview = [];
-    previewGrid.innerHTML = '';
-    legendaInput.value = '';
-    charCount.textContent = '0';
-    renderizarAdmin();
+    btnPublicar.disabled = false;
+    uploadProgress.classList.remove('active');
+    progressFill.style.width = '0%';
   });
 
   // ===== FILTERS =====
@@ -987,7 +1094,7 @@ body {
 
   // ===== ADMIN RENDER =====
   function renderizarAdmin() {
-    let posts = carregarPosts();
+    let posts = postsCache;
     if (filtroAtual !== 'todos') {
       posts = posts.filter(p => p.status === filtroAtual);
     }
@@ -1004,28 +1111,28 @@ body {
       const statusLabel = post.status === 'aprovado' ? 'Aprovado' : post.status === 'reprovado' ? 'Alteração Solicitada' : 'Pendente';
       const thumbClass = post.tipo === 'story' ? 'admin-post-thumb story' : 'admin-post-thumb';
       const comentariosCount = post.comentarios ? post.comentarios.length : 0;
+      const imgSrc = post.imagens && post.imagens[0] ? post.imagens[0] : '';
 
-      return `
-        <div class="admin-post-card">
-          <img src="${post.imagens[0]}" alt="Post" class="${thumbClass}">
-          <div class="admin-post-info">
-            <div class="admin-post-meta">
-              <span class="badge badge-${post.tipo}">${tipoLabel}</span>
-              <span class="badge badge-${post.status}">${statusLabel}</span>
-              ${post.imagens.length > 1 ? `<span style="font-size:12px;color:var(--texto-sec)">${post.imagens.length} imgs</span>` : ''}
-            </div>
-            ${post.legenda ? `<p class="admin-post-legenda">${escapeHtml(post.legenda)}</p>` : '<p class="admin-post-legenda" style="font-style:italic">Sem legenda</p>'}
-            ${comentariosCount > 0 ? `<p style="font-size:12px;color:var(--texto-sec);margin-bottom:10px">${comentariosCount} comentário${comentariosCount > 1 ? 's' : ''}</p>` : ''}
-            <div class="admin-post-actions">
-              <button class="btn btn-outline" data-action="editar" data-id="${post.id}">Editar</button>
-              <button class="btn btn-danger" data-action="excluir" data-id="${post.id}">Excluir</button>
-            </div>
-          </div>
-        </div>`;
+      return '<div class="admin-post-card">' +
+        '<img src="' + escapeAttr(imgSrc) + '" alt="Post" class="' + thumbClass + '">' +
+        '<div class="admin-post-info">' +
+          '<div class="admin-post-meta">' +
+            '<span class="badge badge-' + post.tipo + '">' + tipoLabel + '</span>' +
+            '<span class="badge badge-' + post.status + '">' + statusLabel + '</span>' +
+            (post.imagens && post.imagens.length > 1 ? '<span style="font-size:12px;color:var(--texto-sec)">' + post.imagens.length + ' imgs</span>' : '') +
+          '</div>' +
+          (post.legenda ? '<p class="admin-post-legenda">' + escapeHtml(post.legenda) + '</p>' : '<p class="admin-post-legenda" style="font-style:italic">Sem legenda</p>') +
+          (comentariosCount > 0 ? '<p style="font-size:12px;color:var(--texto-sec);margin-bottom:10px">' + comentariosCount + ' comentário' + (comentariosCount > 1 ? 's' : '') + '</p>' : '') +
+          '<div class="admin-post-actions">' +
+            '<button class="btn btn-outline" data-action="editar" data-id="' + post.id + '">Editar</button>' +
+            '<button class="btn btn-danger" data-action="excluir" data-id="' + post.id + '">Excluir</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
     }).join('');
   }
 
-  adminGrid.addEventListener('click', e => {
+  adminGrid.addEventListener('click', async e => {
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
     const action = btn.dataset.action;
@@ -1033,33 +1140,34 @@ body {
 
     if (action === 'excluir') {
       if (!confirm('Tem certeza que deseja excluir este post?')) return;
-      const posts = carregarPosts().filter(p => p.id !== id);
-      salvarPosts(posts);
-      renderizarAdmin();
-      toast('Post excluído');
+      try {
+        await postsCol.doc(id).delete();
+        toast('Post excluído');
+      } catch { toast('Erro ao excluir'); }
     }
 
     if (action === 'editar') {
-      const posts = carregarPosts();
-      const post = posts.find(p => p.id === id);
+      const post = postsCache.find(p => p.id === id);
       if (!post) return;
       editandoId = id;
       tipoSelecionado = post.tipo;
       document.querySelectorAll('.tipo-btn').forEach(b => {
         b.classList.toggle('selected', b.dataset.tipo === post.tipo);
       });
-      imagensPreview = [...post.imagens];
-      renderizarPreviews();
+      arquivosParaUpload = [];
+      imagensPreviewLocal = [];
+      previewGrid.innerHTML = '';
       legendaInput.value = post.legenda || '';
       charCount.textContent = legendaInput.value.length.toLocaleString('pt-BR');
       btnPublicar.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 114 4L7.5 20.5 2 22l1.5-5.5z"/></svg> Salvar Alterações';
+      toast('Selecione novas imagens ou clique em Salvar para manter as atuais');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   });
 
   // ===== CLIENT RENDER =====
   function renderizarCliente() {
-    const posts = carregarPosts();
+    const posts = postsCache;
     if (posts.length === 0) {
       feedContainer.innerHTML = '';
       clienteVazio.style.display = 'block';
@@ -1071,104 +1179,91 @@ body {
       const tipoLabel = post.tipo === 'carrossel' ? 'Carrossel' : post.tipo === 'story' ? 'Story' : 'Feed';
       const tipoIcon = post.tipo === 'carrossel' ? '&#9641;&#9641;' : post.tipo === 'story' ? '&#9679;' : '&#9632;';
       const iconClass = post.tipo + '-icon';
-      const data = new Date(post.dataCriacao).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+      const ts = post.dataCriacao;
+      const data = ts && ts.toDate ? ts.toDate().toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
 
-      let imagemHtml = '';
-      if (post.tipo === 'carrossel' && post.imagens.length > 1) {
-        imagemHtml = `
-          <div class="carrossel-wrapper" data-post-id="${post.id}">
-            <div class="carrossel-track" data-track="${post.id}">
-              ${post.imagens.map((img, i) => `<div class="carrossel-slide"><img src="${img}" alt="Slide ${i+1}" data-action="zoom" data-src="${img}"></div>`).join('')}
-            </div>
-            <button class="carrossel-arrow prev" data-carousel="${post.id}" data-dir="-1">&#8249;</button>
-            <button class="carrossel-arrow next" data-carousel="${post.id}" data-dir="1">&#8250;</button>
-            <div class="carrossel-dots" data-dots="${post.id}">
-              ${post.imagens.map((_, i) => `<button class="carrossel-dot${i === 0 ? ' active' : ''}" data-carousel="${post.id}" data-slide="${i}"></button>`).join('')}
-            </div>
-          </div>`;
+      var imagemHtml = '';
+      if (post.tipo === 'carrossel' && post.imagens && post.imagens.length > 1) {
+        imagemHtml = '<div class="carrossel-wrapper" data-post-id="' + post.id + '">' +
+          '<div class="carrossel-track" data-track="' + post.id + '">' +
+            post.imagens.map(function(img, i) { return '<div class="carrossel-slide"><img src="' + escapeAttr(img) + '" alt="Slide ' + (i+1) + '" data-action="zoom" data-src="' + escapeAttr(img) + '"></div>'; }).join('') +
+          '</div>' +
+          '<button class="carrossel-arrow prev" data-carousel="' + post.id + '" data-dir="-1">&#8249;</button>' +
+          '<button class="carrossel-arrow next" data-carousel="' + post.id + '" data-dir="1">&#8250;</button>' +
+          '<div class="carrossel-dots" data-dots="' + post.id + '">' +
+            post.imagens.map(function(_, i) { return '<button class="carrossel-dot' + (i === 0 ? ' active' : '') + '" data-carousel="' + post.id + '" data-slide="' + i + '"></button>'; }).join('') +
+          '</div>' +
+        '</div>';
       } else if (post.tipo === 'story') {
-        imagemHtml = `<img src="${post.imagens[0]}" alt="Story" class="post-imagem story-img" data-action="zoom" data-src="${post.imagens[0]}">`;
+        imagemHtml = '<img src="' + escapeAttr(post.imagens[0]) + '" alt="Story" class="post-imagem story-img" data-action="zoom" data-src="' + escapeAttr(post.imagens[0]) + '">';
       } else {
-        imagemHtml = `<img src="${post.imagens[0]}" alt="Post" class="post-imagem" data-action="zoom" data-src="${post.imagens[0]}">`;
+        var imgUrl = post.imagens && post.imagens[0] ? post.imagens[0] : '';
+        imagemHtml = '<img src="' + escapeAttr(imgUrl) + '" alt="Post" class="post-imagem" data-action="zoom" data-src="' + escapeAttr(imgUrl) + '">';
       }
 
-      let statusHtml = '';
+      var statusHtml = '';
       if (post.status === 'aprovado') {
-        statusHtml = `<div class="status-aprovado"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Aprovado</div>
-        <button class="btn-aprovar rejeitar" data-action="reprovar" data-id="${post.id}">Desfazer</button>`;
+        statusHtml = '<div class="status-aprovado"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Aprovado</div>' +
+        '<button class="btn-aprovar rejeitar" data-action="reprovar" data-id="' + post.id + '">Desfazer</button>';
       } else if (post.status === 'reprovado') {
-        statusHtml = `<div class="status-reprovado"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Alteração Solicitada</div>
-        <button class="btn-aprovar aprovar" data-action="aprovar" data-id="${post.id}">Aprovar</button>`;
+        statusHtml = '<div class="status-reprovado"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Alteração Solicitada</div>' +
+        '<button class="btn-aprovar aprovar" data-action="aprovar" data-id="' + post.id + '">Aprovar</button>';
       } else {
-        statusHtml = `
-          <button class="btn-aprovar aprovar" data-action="aprovar" data-id="${post.id}">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-            Aprovar
-          </button>
-          <button class="btn-aprovar rejeitar" data-action="reprovar" data-id="${post.id}">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            Solicitar Alteração
-          </button>`;
+        statusHtml = '<button class="btn-aprovar aprovar" data-action="aprovar" data-id="' + post.id + '">' +
+          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Aprovar</button>' +
+          '<button class="btn-aprovar rejeitar" data-action="reprovar" data-id="' + post.id + '">' +
+          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Solicitar Alteração</button>';
       }
 
-      const comentariosHtml = (post.comentarios || []).map(c => {
-        const hora = new Date(c.dataHora).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-        return `
-          <div class="comentario-item">
-            <div class="comentario-avatar">${c.autor.charAt(0).toUpperCase()}</div>
-            <div class="comentario-body">
-              <strong>${escapeHtml(c.autor)}</strong> <time>${hora}</time>
-              <p>${escapeHtml(c.texto)}</p>
-            </div>
-          </div>`;
+      var comentariosHtml = (post.comentarios || []).map(function(c) {
+        var hora = new Date(c.dataHora).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+        return '<div class="comentario-item">' +
+          '<div class="comentario-avatar">' + c.autor.charAt(0).toUpperCase() + '</div>' +
+          '<div class="comentario-body">' +
+            '<strong>' + escapeHtml(c.autor) + '</strong> <time>' + hora + '</time>' +
+            '<p>' + escapeHtml(c.texto) + '</p>' +
+          '</div></div>';
       }).join('');
 
-      return `
-        <div class="post-card" data-post-card="${post.id}">
-          <div class="post-header">
-            <div class="post-header-left">
-              <div class="post-tipo-icon ${iconClass}">${tipoIcon}</div>
-              <div class="post-header-info">
-                <strong>${tipoLabel}</strong>
-                <span>${data}</span>
-              </div>
-            </div>
-            <span class="badge badge-${post.status}">${post.status === 'aprovado' ? 'Aprovado' : post.status === 'reprovado' ? 'Alteração' : 'Pendente'}</span>
-          </div>
-          ${imagemHtml}
-          ${post.legenda ? `<div class="post-legenda">${escapeHtml(post.legenda)}</div>` : ''}
-          <div class="comentarios-section">
-            <div class="comentarios-titulo">Comentários${post.comentarios && post.comentarios.length > 0 ? ` (${post.comentarios.length})` : ''}</div>
-            ${comentariosHtml}
-            <form class="comentario-form" data-form-post="${post.id}">
-              <input class="comentario-input" placeholder="Escreva um comentário..." required>
-              <button type="submit" class="comentario-enviar">Enviar</button>
-            </form>
-          </div>
-          <div class="aprovacao-section">
-            ${statusHtml}
-          </div>
-        </div>`;
+      return '<div class="post-card" data-post-card="' + post.id + '">' +
+        '<div class="post-header">' +
+          '<div class="post-header-left">' +
+            '<div class="post-tipo-icon ' + iconClass + '">' + tipoIcon + '</div>' +
+            '<div class="post-header-info"><strong>' + tipoLabel + '</strong><span>' + data + '</span></div>' +
+          '</div>' +
+          '<span class="badge badge-' + post.status + '">' + (post.status === 'aprovado' ? 'Aprovado' : post.status === 'reprovado' ? 'Alteração' : 'Pendente') + '</span>' +
+        '</div>' +
+        imagemHtml +
+        (post.legenda ? '<div class="post-legenda">' + escapeHtml(post.legenda) + '</div>' : '') +
+        '<div class="comentarios-section">' +
+          '<div class="comentarios-titulo">Comentários' + (post.comentarios && post.comentarios.length > 0 ? ' (' + post.comentarios.length + ')' : '') + '</div>' +
+          comentariosHtml +
+          '<form class="comentario-form" data-form-post="' + post.id + '">' +
+            '<input class="comentario-input" placeholder="Escreva um comentário..." required>' +
+            '<button type="submit" class="comentario-enviar">Enviar</button>' +
+          '</form>' +
+        '</div>' +
+        '<div class="aprovacao-section">' + statusHtml + '</div>' +
+      '</div>';
     }).join('');
 
     inicializarCarrosseis();
   }
 
-  // ===== CLIENT EVENTS (delegation) =====
-  feedContainer.addEventListener('click', e => {
+  // ===== CLIENT EVENTS =====
+  feedContainer.addEventListener('click', async e => {
     const target = e.target.closest('[data-action]');
     if (!target) return;
     const action = target.dataset.action;
 
     if (action === 'aprovar' || action === 'reprovar') {
       const id = target.dataset.id;
-      const posts = carregarPosts();
-      const post = posts.find(p => p.id === id);
-      if (!post) return;
-      post.status = action === 'aprovar' ? 'aprovado' : 'reprovado';
-      salvarPosts(posts);
-      renderizarCliente();
-      toast(action === 'aprovar' ? 'Post aprovado!' : 'Alteração solicitada');
+      try {
+        await postsCol.doc(id).update({
+          status: action === 'aprovar' ? 'aprovado' : 'reprovado'
+        });
+        toast(action === 'aprovar' ? 'Post aprovado!' : 'Alteração solicitada');
+      } catch { toast('Erro ao atualizar status'); }
     }
 
     if (action === 'zoom') {
@@ -1177,7 +1272,7 @@ body {
     }
   });
 
-  feedContainer.addEventListener('submit', e => {
+  feedContainer.addEventListener('submit', async e => {
     if (!e.target.matches('[data-form-post]')) return;
     e.preventDefault();
     const postId = e.target.dataset.formPost;
@@ -1185,55 +1280,52 @@ body {
     const texto = input.value.trim();
     if (!texto) return;
 
-    const posts = carregarPosts();
-    const post = posts.find(p => p.id === postId);
-    if (!post) return;
-
-    if (!post.comentarios) post.comentarios = [];
-    post.comentarios.push({
+    const novoComentario = {
       id: 'com_' + Date.now(),
       autor: 'Cliente',
       texto: texto,
       dataHora: new Date().toISOString()
-    });
-    salvarPosts(posts);
-    renderizarCliente();
-    toast('Comentário adicionado');
+    };
+
+    try {
+      await postsCol.doc(postId).update({
+        comentarios: firebase.firestore.FieldValue.arrayUnion(novoComentario)
+      });
+      toast('Comentário adicionado');
+    } catch { toast('Erro ao comentar'); }
   });
 
   // ===== CAROUSEL LOGIC =====
   function inicializarCarrosseis() {
-    document.querySelectorAll('.carrossel-arrow').forEach(arrow => {
-      arrow.addEventListener('click', e => {
+    document.querySelectorAll('.carrossel-arrow').forEach(function(arrow) {
+      arrow.addEventListener('click', function(e) {
         e.stopPropagation();
-        const postId = arrow.dataset.carousel;
-        const dir = parseInt(arrow.dataset.dir);
-        const track = document.querySelector(`[data-track="${postId}"]`);
+        var postId = arrow.dataset.carousel;
+        var dir = parseInt(arrow.dataset.dir);
+        var track = document.querySelector('[data-track="' + postId + '"]');
         if (!track) return;
-        const slideW = track.offsetWidth;
-        track.scrollBy({ left: slideW * dir, behavior: 'smooth' });
+        track.scrollBy({ left: track.offsetWidth * dir, behavior: 'smooth' });
       });
     });
 
-    document.querySelectorAll('.carrossel-dot').forEach(dot => {
-      dot.addEventListener('click', e => {
+    document.querySelectorAll('.carrossel-dot').forEach(function(dot) {
+      dot.addEventListener('click', function(e) {
         e.stopPropagation();
-        const postId = dot.dataset.carousel;
-        const slideIdx = parseInt(dot.dataset.slide);
-        const track = document.querySelector(`[data-track="${postId}"]`);
+        var postId = dot.dataset.carousel;
+        var slideIdx = parseInt(dot.dataset.slide);
+        var track = document.querySelector('[data-track="' + postId + '"]');
         if (!track) return;
-        const slideW = track.offsetWidth;
-        track.scrollTo({ left: slideW * slideIdx, behavior: 'smooth' });
+        track.scrollTo({ left: track.offsetWidth * slideIdx, behavior: 'smooth' });
       });
     });
 
-    document.querySelectorAll('.carrossel-track').forEach(track => {
-      track.addEventListener('scroll', () => {
-        const postId = track.dataset.track;
-        const slideW = track.offsetWidth;
-        const idx = Math.round(track.scrollLeft / slideW);
-        const dots = document.querySelectorAll(`[data-dots="${postId}"] .carrossel-dot`);
-        dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+    document.querySelectorAll('.carrossel-track').forEach(function(track) {
+      track.addEventListener('scroll', function() {
+        var postId = track.dataset.track;
+        var idx = Math.round(track.scrollLeft / track.offsetWidth);
+        document.querySelectorAll('[data-dots="' + postId + '"] .carrossel-dot').forEach(function(d, i) {
+          d.classList.toggle('active', i === idx);
+        });
       });
     });
   }
@@ -1246,41 +1338,6 @@ body {
   });
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') lightbox.classList.remove('aberta');
-  });
-
-  // ===== EXPORT / IMPORT =====
-  document.getElementById('btn-exportar').addEventListener('click', () => {
-    const posts = carregarPosts();
-    if (posts.length === 0) { toast('Nenhum post para exportar'); return; }
-    const blob = new Blob([JSON.stringify(posts, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'aprovador-posts-' + new Date().toISOString().slice(0, 10) + '.json';
-    a.click();
-    URL.revokeObjectURL(url);
-    toast('Dados exportados!');
-  });
-
-  document.getElementById('btn-importar').addEventListener('click', () => {
-    document.getElementById('importar-input').click();
-  });
-
-  document.getElementById('importar-input').addEventListener('change', e => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = function(ev) {
-      try {
-        const data = JSON.parse(ev.target.result);
-        if (!Array.isArray(data)) throw new Error('Formato inválido');
-        salvarPosts(data);
-        renderizarAdmin();
-        toast('Dados importados! (' + data.length + ' posts)');
-      } catch { toast('Erro: arquivo inválido'); }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
   });
 
   // ===== TOAST =====
@@ -1302,8 +1359,11 @@ body {
     return d.innerHTML;
   }
 
-  // ===== INIT =====
-  renderizarAdmin();
+  function escapeAttr(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
 })();
 </script>
 </body>
