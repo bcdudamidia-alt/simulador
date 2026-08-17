@@ -1,0 +1,165 @@
+@import 'tailwindcss';
+
+/**
+ * Tokens do Pareo.
+ *
+ * Regra que sustenta o tema: TODA cor é definida no `:root` claro. Os blocos
+ * escuros só REDEFINEM tokens — nunca introduzem um token que não exista no
+ * claro. Sem isso, uma cor definida apenas no bloco escuro fica indefinida no
+ * tema claro e o componente renderiza transparente.
+ *
+ * Os três escopos são obrigatórios:
+ *   :root                                     → claro
+ *   @media (prefers-color-scheme: dark) + :not([data-theme='light'])
+ *                                             → escuro do sistema, que o
+ *                                               toggle claro consegue vencer
+ *   :root[data-theme='dark']                  → toggle escuro explícito
+ *
+ * Paleta categórica em ordem FIXA (nunca ciclada, nunca por ranking): a ordem
+ * é o mecanismo de segurança para daltonismo, validada por ΔE entre pares
+ * adjacentes. Trocar a ordem quebra essa garantia.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* superfícies e tinta */
+  --plane: #f9f9f7;
+  --surface: #fcfcfb;
+  --surface-raised: #ffffff;
+  --ink-primary: #0b0b0b;
+  --ink-secondary: #52514e;
+  --ink-muted: #898781;
+  --hairline: rgba(11, 11, 11, 0.1);
+  --gridline: #e1e0d9;
+  --baseline: #c3c2b7;
+
+  /* marca */
+  --brand: #2a78d6;
+  --brand-soft: #cde2fb;
+
+  /* série categórica — ordem fixa */
+  --series-1: #2a78d6; /* azul */
+  --series-2: #eb6834; /* laranja */
+  --series-3: #1baf7a; /* água */
+  --series-4: #eda100; /* amarelo */
+  --series-5: #e87ba4; /* magenta */
+  --series-6: #008300; /* verde */
+  --series-7: #4a3aa7; /* violeta */
+  --series-8: #e34948; /* vermelho */
+
+  /* estado — reservado, nunca reaproveitado como série */
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-serious: #ec835a;
+  --status-critical: #d03b3b;
+
+  /* direção de valor: entrada sobe, saída desce */
+  --value-up: #006300;
+  --value-down: #d03b3b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --plane: #0d0d0d;
+    --surface: #1a1a19;
+    --surface-raised: #232322;
+    --ink-primary: #ffffff;
+    --ink-secondary: #c3c2b7;
+    --ink-muted: #898781;
+    --hairline: rgba(255, 255, 255, 0.1);
+    --gridline: #2c2c2a;
+    --baseline: #383835;
+
+    --brand: #3987e5;
+    --brand-soft: #184f95;
+
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-5: #d55181;
+    --series-6: #008300;
+    --series-7: #9085e9;
+    --series-8: #e66767;
+
+    --value-up: #0ca30c;
+    --value-down: #d03b3b;
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --plane: #0d0d0d;
+  --surface: #1a1a19;
+  --surface-raised: #232322;
+  --ink-primary: #ffffff;
+  --ink-secondary: #c3c2b7;
+  --ink-muted: #898781;
+  --hairline: rgba(255, 255, 255, 0.1);
+  --gridline: #2c2c2a;
+  --baseline: #383835;
+
+  --brand: #3987e5;
+  --brand-soft: #184f95;
+
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --series-6: #008300;
+  --series-7: #9085e9;
+  --series-8: #e66767;
+
+  --value-up: #0ca30c;
+  --value-down: #d03b3b;
+}
+
+/* Expõe os tokens ao Tailwind v4 como utilitários (bg-surface, text-ink-muted…) */
+@theme inline {
+  --color-plane: var(--plane);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-ink-primary: var(--ink-primary);
+  --color-ink-secondary: var(--ink-secondary);
+  --color-ink-muted: var(--ink-muted);
+  --color-hairline: var(--hairline);
+  --color-gridline: var(--gridline);
+  --color-brand: var(--brand);
+  --color-brand-soft: var(--brand-soft);
+  --color-status-good: var(--status-good);
+  --color-status-warning: var(--status-warning);
+  --color-status-serious: var(--status-serious);
+  --color-status-critical: var(--status-critical);
+  --color-value-up: var(--value-up);
+  --color-value-down: var(--value-down);
+  --font-sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+html,
+body {
+  background: var(--plane);
+  color: var(--ink-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Foco visível sempre: navegação por teclado é requisito, não enfeite. */
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

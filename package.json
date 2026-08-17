@@ -1,0 +1,24 @@
+{
+  "name": "pareo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Controle financeiro pessoal e de casal: multi-contas, cartões, importação OFX/CSV, categorização por IA e metas compartilhadas.",
+  "workspaces": [
+    "apps/api",
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "dev:api": "npm run dev --workspace @pareo/api",
+    "dev:web": "npm run dev --workspace @pareo/web",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "db:up": "docker compose up -d postgres",
+    "db:migrate": "npm run db:migrate --workspace @pareo/api",
+    "db:seed": "npm run db:seed --workspace @pareo/api"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

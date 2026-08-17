@@ -1,0 +1,594 @@
+// Pareo — schema do banco.
+// Doc narrativo: docs/DATA_MODEL.md · DDL de referência: sql/001_init.sql
+//
+// Convenções:
+//   - dinheiro sempre em CENTAVOS (BigInt). Nunca Float.
+//   - despesa = valor negativo, receita = valor positivo.
+//   - household_id presente em toda tabela de domínio (raiz de isolamento).
+//   - campos *_enc são cifrados (AES-256-GCM); *_bidx são blind index (HMAC).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────── enums ───────────────────────────────
+
+enum MemberRole {
+  owner
+  partner
+  viewer
+}
+
+enum AccountType {
+  checking
+  savings
+  investment
+  cash
+  other
+}
+
+enum CardBrand {
+  visa
+  mastercard
+  elo
+  amex
+  hipercard
+  other
+}
+
+enum StatementStatus {
+  open
+  closed
+  paid
+  overdue
+}
+
+enum CategoryKind {
+  expense
+  income
+  transfer
+  investment
+}
+
+enum TransactionType {
+  expense
+  income
+  transfer
+  refund
+}
+
+enum TransactionStatus {
+  pending
+  posted
+  reconciled
+}
+
+enum CategorySource {
+  rule
+  history
+  ai
+  user
+}
+
+enum Sharing {
+  shared
+  personal
+}
+
+enum MatchType {
+  contains
+  starts_with
+  equals
+  regex
+}
+
+enum GoalKind {
+  wedding
+  property
+  travel
+  emergency_fund
+  vehicle
+  education
+  other
+}
+
+enum GoalStatus {
+  active
+  paused
+  achieved
+  cancelled
+}
+
+enum ImportFormat {
+  ofx
+  csv
+  manual
+}
+
+enum ImportStatus {
+  processing
+  completed
+  failed
+  partial
+}
+
+// ───────────────────────── identidade e isolamento ─────────────────────────
+
+model User {
+  id              String    @id @default(uuid()) @db.Uuid
+  email           String    @unique
+  passwordHash    String    @map("password_hash")
+  name            String
+  avatarUrl       String?   @map("avatar_url")
+  mfaSecretEnc    Bytes?    @map("mfa_secret_enc")
+  emailVerifiedAt DateTime? @map("email_verified_at") @db.Timestamptz(6)
+  lastLoginAt     DateTime? @map("last_login_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  memberships   HouseholdMember[]
+  refreshTokens RefreshToken[]
+  contributions GoalContribution[]
+  paidTx        Transaction[]      @relation("PaidBy")
+  splits        TransactionSplit[]
+  ownedAccounts Account[]
+  ownedCards    CreditCard[]
+  createdGoals  Goal[]
+  importBatches ImportBatch[]
+
+  @@map("users")
+}
+
+model Household {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  currency  String   @default("BRL") @db.Char(3)
+  timezone  String   @default("America/Sao_Paulo")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  members       HouseholdMember[]
+  accounts      Account[]
+  creditCards   CreditCard[]
+  statements    CardStatement[]
+  categories    Category[]
+  merchants     Merchant[]
+  transactions  Transaction[]
+  rules         CategorizationRule[]
+  goals         Goal[]
+  contributions GoalContribution[]
+  importBatches ImportBatch[]
+  insights      AiInsight[]
+  invites       HouseholdInvite[]
+
+  @@map("households")
+}
+
+model HouseholdMember {
+  householdId String     @map("household_id") @db.Uuid
+  userId      String     @map("user_id") @db.Uuid
+  role        MemberRole @default(partner)
+  joinedAt    DateTime   @default(now()) @map("joined_at") @db.Timestamptz(6)
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([householdId, userId])
+  @@index([userId])
+  @@map("household_members")
+}
+
+/// Convite do parceiro(a). O token em claro é enviado por e-mail e nunca persistido.
+model HouseholdInvite {
+  id          String     @id @default(uuid()) @db.Uuid
+  householdId String     @map("household_id") @db.Uuid
+  email       String
+  role        MemberRole @default(partner)
+  tokenHash   String     @unique @map("token_hash")
+  expiresAt   DateTime   @map("expires_at") @db.Timestamptz(6)
+  acceptedAt  DateTime?  @map("accepted_at") @db.Timestamptz(6)
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+
+  @@index([householdId])
+  @@map("household_invites")
+}
+
+/// Refresh rotativo: cada uso emite um novo token e revoga o anterior.
+/// Reuso de um token já revogado revoga a família inteira (sinal de roubo).
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  familyId  String    @map("family_id") @db.Uuid
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(6)
+  userAgent String?   @map("user_agent")
+  ip        String?
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([familyId])
+  @@map("refresh_tokens")
+}
+
+// ───────────────────────────── contas e cartões ─────────────────────────────
+
+model Account {
+  id                  String      @id @default(uuid()) @db.Uuid
+  householdId         String      @map("household_id") @db.Uuid
+  /// null = conta conjunta do casal
+  ownerUserId         String?     @map("owner_user_id") @db.Uuid
+  name                String
+  type                AccountType @default(checking)
+  institutionCode     String?     @map("institution_code")
+  institutionName     String?     @map("institution_name")
+  /// número da conta cifrado (AES-256-GCM)
+  numberEnc           Bytes?      @map("number_enc")
+  /// blind index HMAC — casa o <ACCTID> do OFX sem decifrar nada
+  numberBidx          Bytes?      @map("number_bidx")
+  currentBalanceCents BigInt      @default(0) @map("current_balance_cents")
+  balanceSyncedAt     DateTime?   @map("balance_synced_at") @db.Timestamptz(6)
+  color               String      @default("#6366F1")
+  icon                String      @default("bank")
+  isArchived          Boolean     @default(false) @map("is_archived")
+  createdAt           DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  household     Household     @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  owner         User?         @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+  transactions  Transaction[]
+  cards         CreditCard[]  @relation("PaymentAccount")
+  goals         Goal[]
+  importBatches ImportBatch[]
+
+  @@index([householdId, isArchived])
+  @@index([householdId, numberBidx])
+  @@map("accounts")
+}
+
+model CreditCard {
+  id               String    @id @default(uuid()) @db.Uuid
+  householdId      String    @map("household_id") @db.Uuid
+  ownerUserId      String?   @map("owner_user_id") @db.Uuid
+  /// conta de onde a fatura é debitada
+  paymentAccountId String?   @map("payment_account_id") @db.Uuid
+  name             String
+  brand            CardBrand @default(other)
+  /// 4 últimos dígitos, cifrados. PAN completo e CVV NUNCA são armazenados.
+  last4Enc         Bytes?    @map("last4_enc")
+  holderNameEnc    Bytes?    @map("holder_name_enc")
+  creditLimitCents BigInt?   @map("credit_limit_cents")
+  closingDay       Int       @map("closing_day") @db.SmallInt
+  dueDay           Int       @map("due_day") @db.SmallInt
+  color            String    @default("#8B5CF6")
+  isArchived       Boolean   @default(false) @map("is_archived")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  household      Household       @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  owner          User?           @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+  paymentAccount Account?        @relation("PaymentAccount", fields: [paymentAccountId], references: [id], onDelete: SetNull)
+  statements     CardStatement[]
+  transactions   Transaction[]
+  importBatches  ImportBatch[]
+
+  @@index([householdId, isArchived])
+  @@map("credit_cards")
+}
+
+model CardStatement {
+  id                String          @id @default(uuid()) @db.Uuid
+  householdId       String          @map("household_id") @db.Uuid
+  creditCardId      String          @map("credit_card_id") @db.Uuid
+  /// sempre dia 1 — competência da fatura
+  referenceMonth    DateTime        @map("reference_month") @db.Date
+  closingDate       DateTime        @map("closing_date") @db.Date
+  dueDate           DateTime        @map("due_date") @db.Date
+  totalAmountCents  BigInt          @default(0) @map("total_amount_cents")
+  paidAmountCents   BigInt          @default(0) @map("paid_amount_cents")
+  status            StatementStatus @default(open)
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  household    Household     @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  creditCard   CreditCard    @relation(fields: [creditCardId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@unique([creditCardId, referenceMonth])
+  @@index([householdId, dueDate])
+  @@map("card_statements")
+}
+
+// ─────────────────────────── categorias e transações ───────────────────────────
+
+/// Categoria SEMPRE pertence a um household.
+///
+/// O catálogo em `system-categories.ts` é COPIADO para cada household novo, em
+/// vez de existir como linhas globais compartilhadas. Custa algumas dezenas de
+/// linhas por casal e paga isso três vezes: o casal pode renomear "Alimentação"
+/// para "Rango" sem afetar ninguém; não existe lógica de merge entre catálogo
+/// global e override local; e `household_id` nunca é nulo, o que mantém a RLS
+/// e as chaves únicas simples (Postgres trata NULL como distinto de NULL, e
+/// isso quebra unicidade justamente onde ela mais importa).
+///
+/// O preço é explícito: adicionar uma categoria ao catálogo depois exige uma
+/// migração que a propague. É trabalho consciente, não surpresa.
+model Category {
+  id          String       @id @default(uuid()) @db.Uuid
+  householdId String       @map("household_id") @db.Uuid
+  parentId    String?      @map("parent_id") @db.Uuid
+  name        String
+  /// chave estável usada pelo prompt de IA: "alimentacao.delivery"
+  slug        String
+  kind        CategoryKind @default(expense)
+  color       String       @default("#94A3B8")
+  icon        String       @default("tag")
+  /// veio do catálogo padrão — pode ser renomeada, não pode ser apagada
+  isSystem    Boolean      @default(false) @map("is_system")
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  household    Household            @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  parent       Category?            @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children     Category[]           @relation("CategoryTree")
+  transactions Transaction[]
+  rules        CategorizationRule[]
+  merchants    Merchant[]
+
+  @@unique([householdId, slug])
+  @@index([householdId, kind])
+  @@map("categories")
+}
+
+/// Estabelecimento normalizado. É a memória do sistema: uma correção do usuário
+/// aqui evita centenas de chamadas de LLM depois.
+model Merchant {
+  id                String   @id @default(uuid()) @db.Uuid
+  householdId       String   @map("household_id") @db.Uuid
+  normalizedName    String   @map("normalized_name")
+  displayName       String   @map("display_name")
+  defaultCategoryId String?  @map("default_category_id") @db.Uuid
+  seenCount         Int      @default(0) @map("seen_count")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  household       Household     @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  defaultCategory Category?     @relation(fields: [defaultCategoryId], references: [id], onDelete: SetNull)
+  transactions    Transaction[]
+
+  @@unique([householdId, normalizedName])
+  @@map("merchants")
+}
+
+model Transaction {
+  id          String @id @default(uuid()) @db.Uuid
+  householdId String @map("household_id") @db.Uuid
+
+  /// exatamente um entre accountId e creditCardId (CHECK no banco)
+  accountId       String? @map("account_id") @db.Uuid
+  creditCardId    String? @map("credit_card_id") @db.Uuid
+  cardStatementId String? @map("card_statement_id") @db.Uuid
+  categoryId      String? @map("category_id") @db.Uuid
+  merchantId      String? @map("merchant_id") @db.Uuid
+  importBatchId   String? @map("import_batch_id") @db.Uuid
+
+  postedAt        DateTime @map("posted_at") @db.Date
+  /// competência: para cartão, o mês da fatura; para conta, = postedAt
+  competenceDate  DateTime @map("competence_date") @db.Date
+  /// NEGATIVO = saída · POSITIVO = entrada
+  amountCents     BigInt   @map("amount_cents")
+  currency        String   @default("BRL") @db.Char(3)
+  description     String
+  /// maiúsculas, sem acento e sem ruído de adquirente — base para regras e merchant
+  normalizedDescription String @map("normalized_description")
+  notes           String?
+
+  type   TransactionType   @default(expense)
+  status TransactionStatus @default(posted)
+
+  /// id do banco no OFX — chave forte de deduplicação
+  fitid      String?
+  /// sha256(conta|data|valor|descrição) — dedupe para CSV sem FITID
+  dedupeHash String  @map("dedupe_hash")
+
+  categorySource     CategorySource? @map("category_source")
+  categoryConfidence Decimal?        @map("category_confidence") @db.Decimal(3, 2)
+  needsReview        Boolean         @default(false) @map("needs_review")
+
+  sharing       Sharing @default(shared)
+  paidByUserId  String? @map("paid_by_user_id") @db.Uuid
+
+  installmentNumber  Int?    @map("installment_number") @db.SmallInt
+  installmentTotal   Int?    @map("installment_total") @db.SmallInt
+  installmentGroupId String? @map("installment_group_id") @db.Uuid
+
+  /// quando a transação é, ela própria, um aporte em uma meta
+  goalId String? @map("goal_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  household     Household          @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  account       Account?           @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  creditCard    CreditCard?        @relation(fields: [creditCardId], references: [id], onDelete: Cascade)
+  cardStatement CardStatement?     @relation(fields: [cardStatementId], references: [id], onDelete: SetNull)
+  category      Category?          @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  merchant      Merchant?          @relation(fields: [merchantId], references: [id], onDelete: SetNull)
+  importBatch   ImportBatch?       @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  paidBy        User?              @relation("PaidBy", fields: [paidByUserId], references: [id], onDelete: SetNull)
+  goal          Goal?              @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  splits        TransactionSplit[]
+  contribution  GoalContribution[]
+
+  @@unique([accountId, fitid], name: "uq_account_fitid")
+  @@unique([householdId, dedupeHash], name: "uq_household_dedupe")
+  @@index([householdId, postedAt(sort: Desc)])
+  @@index([householdId, categoryId, postedAt])
+  @@index([householdId, needsReview])
+  @@index([cardStatementId])
+  @@index([installmentGroupId])
+  @@map("transactions")
+}
+
+/// Rateio de despesa entre o casal. Sem linhas = 100% de quem pagou.
+model TransactionSplit {
+  transactionId String @map("transaction_id") @db.Uuid
+  userId        String @map("user_id") @db.Uuid
+  amountCents   BigInt @map("amount_cents")
+
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([transactionId, userId])
+  @@map("transaction_splits")
+}
+
+/// Regra determinística de categorização. Nasce do usuário ou de uma correção
+/// dele sobre um palpite da IA — é assim que o sistema para de errar de novo.
+model CategorizationRule {
+  id          String    @id @default(uuid()) @db.Uuid
+  householdId String    @map("household_id") @db.Uuid
+  matchType   MatchType @default(contains) @map("match_type")
+  pattern     String
+  categoryId  String    @map("category_id") @db.Uuid
+  priority    Int       @default(100)
+  autoCreated Boolean   @default(false) @map("auto_created")
+  hitCount    Int       @default(0) @map("hit_count")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  category  Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([householdId, priority])
+  @@map("categorization_rules")
+}
+
+// ──────────────────────────── metas e projetos ────────────────────────────
+
+model Goal {
+  id                  String     @id @default(uuid()) @db.Uuid
+  householdId         String     @map("household_id") @db.Uuid
+  name                String
+  description         String?
+  kind                GoalKind   @default(other)
+  targetAmountCents   BigInt     @map("target_amount_cents")
+  /// valor que já existia quando a meta foi criada
+  initialAmountCents  BigInt     @default(0) @map("initial_amount_cents")
+  targetDate          DateTime?  @map("target_date") @db.Date
+  linkedAccountId     String?    @map("linked_account_id") @db.Uuid
+  /// aporte planejado; se null, o backend calcula a partir do prazo
+  monthlyTargetCents  BigInt?    @map("monthly_target_cents")
+  priority            Int        @default(1) @db.SmallInt
+  status              GoalStatus @default(active)
+  color               String     @default("#10B981")
+  icon                String     @default("target")
+  createdByUserId     String     @map("created_by_user_id") @db.Uuid
+  createdAt           DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  household     Household          @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  linkedAccount Account?           @relation(fields: [linkedAccountId], references: [id], onDelete: SetNull)
+  createdBy     User               @relation(fields: [createdByUserId], references: [id])
+  contributions GoalContribution[]
+  transactions  Transaction[]
+
+  @@index([householdId, status, priority])
+  @@map("goals")
+}
+
+model GoalContribution {
+  id            String   @id @default(uuid()) @db.Uuid
+  householdId   String   @map("household_id") @db.Uuid
+  goalId        String   @map("goal_id") @db.Uuid
+  /// quem aportou — é o que permite mostrar "Ana 60% · Bruno 40%"
+  userId        String   @map("user_id") @db.Uuid
+  /// negativo = resgate
+  amountCents   BigInt   @map("amount_cents")
+  contributedAt DateTime @map("contributed_at") @db.Date
+  transactionId String?  @map("transaction_id") @db.Uuid
+  note          String?
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  household   Household    @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  goal        Goal         @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+
+  @@index([goalId, contributedAt])
+  @@index([householdId, contributedAt])
+  @@map("goal_contributions")
+}
+
+// ───────────────────────────── importação e IA ─────────────────────────────
+
+model ImportBatch {
+  id              String       @id @default(uuid()) @db.Uuid
+  householdId     String       @map("household_id") @db.Uuid
+  createdByUserId String       @map("created_by_user_id") @db.Uuid
+  accountId       String?      @map("account_id") @db.Uuid
+  creditCardId    String?      @map("credit_card_id") @db.Uuid
+  filename        String
+  /// sha256 do arquivo — reimportar o mesmo arquivo é no-op
+  fileHash        String       @map("file_hash")
+  format          ImportFormat
+  status          ImportStatus @default(processing)
+  totalRows       Int          @default(0) @map("total_rows")
+  importedCount   Int          @default(0) @map("imported_count")
+  duplicateCount  Int          @default(0) @map("duplicate_count")
+  errorCount      Int          @default(0) @map("error_count")
+  statementStart  DateTime?    @map("statement_start") @db.Date
+  statementEnd    DateTime?    @map("statement_end") @db.Date
+  errorLog        Json?        @map("error_log")
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  household    Household     @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  createdBy    User          @relation(fields: [createdByUserId], references: [id])
+  account      Account?      @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  creditCard   CreditCard?   @relation(fields: [creditCardId], references: [id], onDelete: SetNull)
+  transactions Transaction[]
+
+  @@unique([householdId, fileHash])
+  @@index([householdId, createdAt(sort: Desc)])
+  @@map("import_batches")
+}
+
+model AiInsight {
+  id             String   @id @default(uuid()) @db.Uuid
+  householdId    String   @map("household_id") @db.Uuid
+  /// dia 1 do mês analisado
+  referenceMonth DateTime @map("reference_month") @db.Date
+  payload        Json
+  model          String
+  inputTokens    Int      @default(0) @map("input_tokens")
+  outputTokens   Int      @default(0) @map("output_tokens")
+  generatedAt    DateTime @default(now()) @map("generated_at") @db.Timestamptz(6)
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+
+  @@unique([householdId, referenceMonth])
+  @@map("ai_insights")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  householdId String?  @map("household_id") @db.Uuid
+  userId      String?  @map("user_id") @db.Uuid
+  action      String
+  entity      String?
+  entityId    String?  @map("entity_id") @db.Uuid
+  metadata    Json?
+  ip          String?
+  userAgent   String?  @map("user_agent")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([householdId, createdAt(sort: Desc)])
+  @@map("audit_logs")
+}

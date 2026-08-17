@@ -1,0 +1,25 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pareo-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pareo
+      POSTGRES_PASSWORD: pareo_dev_only
+      POSTGRES_DB: pareo
+      # C.UTF-8 dá ordenação determinística entre versões do Postgres — o que
+      # importa porque índice criado com uma collation e lido com outra corrompe
+      # busca em produção.
+      LANG: C.UTF-8
+    ports:
+      - '5432:5432'
+    volumes:
+      - pareo-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U pareo -d pareo']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pareo-pgdata:
