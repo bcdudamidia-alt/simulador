@@ -9,7 +9,11 @@ import { SYSTEM_CATEGORIES } from '../src/modules/categories/system-categories.j
  * suficiente para o dashboard, o comparativo mês a mês e os insights terem o
  * que mostrar sem depender de um arquivo OFX real.
  *
- * Idempotente: rodar duas vezes não duplica nada.
+ * Idempotente E determinístico: rodar duas vezes não duplica nada, e duas
+ * instalações diferentes geram exatamente os mesmos números. A variação mês a
+ * mês vem de um hash da descrição, não de `Math.random()` — dado de seed
+ * aleatório quebra a idempotência (o `dedupe_hash` muda a cada execução) e
+ * torna screenshot e QA manual irreproduzíveis.
  *
  * Rodar:  npm run db:seed --workspace @pareo/api
  */
@@ -115,14 +119,24 @@ async function main(): Promise<void> {
   const now = new Date();
   const rows = [];
 
+  /** Jitter determinístico em [-8%, +8%], derivado da própria chave da linha. */
+  const jitterFor = (key: string): number => {
+    let hash = 0;
+    for (const char of key) hash = (hash * 31 + char.charCodeAt(0)) % 10_000;
+    return 1 + ((hash % 160) - 80) / 1000;
+  };
+
   for (let monthsAgo = 2; monthsAgo >= 0; monthsAgo--) {
     const base = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - monthsAgo, 5));
     const monthStart = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), 1));
 
     for (const [description, amount, slug] of recurring) {
       // Variação de ±8% para o comparativo mês a mês não ficar chapado.
-      const jitter = amount > 0n ? 1 : 1 + (Math.random() - 0.5) * 0.16;
-      const value = BigInt(Math.round(Number(amount) * jitter));
+      // Receita não varia: salário é o mesmo todo mês.
+      const value =
+        amount > 0n
+          ? amount
+          : BigInt(Math.round(Number(amount) * jitterFor(`${monthsAgo}:${description}`)));
 
       rows.push({
         householdId: household.id,
@@ -136,7 +150,9 @@ async function main(): Promise<void> {
         categorySource: 'rule' as const,
         categoryConfidence: 1,
         type: value < 0n ? ('expense' as const) : ('income' as const),
-        dedupeHash: `seed-${monthsAgo}-${description}-${value}`,
+        // A chave NÃO inclui o valor: se incluísse, qualquer mudança no jitter
+        // faria o seed inserir tudo de novo em vez de ser um no-op.
+        dedupeHash: `seed:${monthsAgo}:${description}`,
         paidByUserId: monthsAgo % 2 === 0 ? ana.id : bruno.id,
       });
     }
@@ -144,7 +160,7 @@ async function main(): Promise<void> {
     // Alguns gastos de cartão, incluindo um parcelamento
     for (let i = 0; i < 6; i++) {
       const day = 3 + i * 4;
-      const value = BigInt(-(2000 + Math.round(Math.random() * 12000)));
+      const value = BigInt(-Math.round(2000 + jitterFor(`card:${monthsAgo}:${i}`) * 10_000));
       rows.push({
         householdId: household.id,
         creditCardId: card.id,
@@ -157,7 +173,7 @@ async function main(): Promise<void> {
         categorySource: 'ai' as const,
         categoryConfidence: 0.93,
         type: 'expense' as const,
-        dedupeHash: `seed-card-${monthsAgo}-${i}`,
+        dedupeHash: `seed:card:${monthsAgo}:${i}`,
         paidByUserId: bruno.id,
       });
     }
@@ -187,7 +203,7 @@ async function main(): Promise<void> {
         householdId: household!.id,
         goalId: apartamento.id,
         userId: i % 2 === 0 ? ana.id : bruno.id,
-        amountCents: BigInt(150_000 + Math.round(Math.random() * 100_000)),
+        amountCents: BigInt(150_000 + Math.round(jitterFor(`aporte:${i}`) * 100_000)),
         contributedAt: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 9 + i, 10)),
       })),
     });

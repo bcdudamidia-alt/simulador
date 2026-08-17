@@ -103,6 +103,7 @@ simulador/
 │       │   └── error-handler.ts    # tradutor de erro → resposta JSON
 │       └── modules/
 │           ├── auth/               # auth.service.ts · auth.routes.ts
+│           ├── accounts/           # accounts.routes.ts (contas + cartões CRUD)
 │           ├── categories/         # system-categories.ts (catálogo padrão)
 │           ├── imports/            # import.service · ofx-parser · csv-parser
 │           │                       # normalize · imports.routes · testes
@@ -113,23 +114,29 @@ simulador/
 └── apps/web/                       # ───────── FRONTEND ─────────
     └── src/
         ├── app/
-        │   ├── layout.tsx          # tema claro/escuro, script anti-flash
+        │   ├── layout.tsx          # SessionProvider, script anti-flash de tema
         │   ├── globals.css         # tokens de cor e paleta de gráficos
-        │   ├── page.tsx            # DASHBOARD
-        │   ├── login/              # ← a fazer
-        │   ├── transacoes/         # ← a fazer
-        │   ├── contas/             # ← a fazer
-        │   ├── metas/              # ← a fazer
-        │   └── importar/           # ← a fazer
+        │   ├── icon.svg            # favicon
+        │   ├── login/              # entrar + criar conta + demonstração
+        │   └── (app)/              # route group: NÃO aparece na URL
+        │       ├── layout.tsx      # AppShell (sidebar + guard de sessão)
+        │       ├── page.tsx        # DASHBOARD  →  /
+        │       ├── transacoes/     # extrato, filtros, recategorização
+        │       ├── importar/       # drag & drop OFX/CSV + histórico
+        │       ├── contas/         # CRUD de contas e cartões
+        │       └── metas/          # CRUD, aportes e simulador
         ├── components/
         │   ├── dashboard/          # kpi-row · cash-flow-chart
         │   │                       # category-breakdown · goals-panel
         │   │                       # accounts-panel · recent-transactions
         │   │                       # insights-panel
+        │   ├── shell/app-shell.tsx # navegação + guard do cliente
         │   ├── ui/card.tsx         # Card · CardHeader · Legend · Badge
+        │   ├── ui/form.tsx         # Modal · TextField · SelectField · parseToCents
         │   └── theme-toggle.tsx
         └── lib/
             ├── api.ts              # fetch tipado com refresh automático
+            ├── session.tsx         # contexto de sessão (identidade, não token)
             ├── demo-data.ts        # fixture do modo demonstração
             ├── format.ts           # BRL, datas, percentuais (pt-BR)
             └── types.ts            # DTOs compartilhados com a API
@@ -227,7 +234,7 @@ projeçãoTérmino = hoje + ceil(faltam / aporte_médio_últimos_3_meses) meses
 
 | Fase | Entrega |
 |---|---|
-| **MVP (agora)** | Auth + household, contas/cartões manuais, import OFX/CSV, categorização IA, dashboard, metas |
+| **MVP (concluído)** | Auth + household, CRUD de contas/cartões, import OFX/CSV, categorização IA, dashboard, metas com simulador — as 6 telas |
 | **v1.1** | Fila (BullMQ) para importação e IA · orçamento por categoria · recorrências detectadas |
 | **v1.2** | Open Finance (Pluggy/Belvo) substituindo o upload manual · conciliação de fatura × pagamento |
 | **v1.3** | App mobile (Expo, reaproveitando `lib/api.ts` e tipos) · notificações de vencimento |

@@ -3,10 +3,10 @@
 Controle financeiro pessoal e de casal: multi-contas, cartões, importação de
 extratos OFX/CSV, categorização por IA e metas compartilhadas de longo prazo.
 
-> **Estado:** fundação do MVP. Arquitetura, modelo de dados, backend de
-> importação/categorização/metas/dashboard e o dashboard em React estão
-> escritos. O que ainda falta está listado em [Próximos passos](#próximos-passos)
-> e em [`docs/SECURITY.md §10`](docs/SECURITY.md).
+> **Estado:** MVP navegável. As seis telas funcionam ponta a ponta contra a API
+> real — login, painel, lançamentos, importação, contas/cartões e metas. O que
+> ainda falta está em [Próximos passos](#próximos-passos) e em
+> [`docs/SECURITY.md §10`](docs/SECURITY.md).
 
 ---
 
@@ -50,8 +50,9 @@ npm run dev:web                            # http://localhost:3000
 
 Login do seed: `ana@exemplo.com` / `bruno@exemplo.com`, senha `pareo-dev-123456`.
 
-O frontend roda sem o backend: sem sessão, o dashboard entra em **modo
-demonstração** com dados fictícios rotulados como tal.
+Sem backend no ar, a tela de login oferece **"ver uma demonstração"**: o painel
+e as metas usam dados fictícios, rotulados como tais em uma faixa fixa no topo, e
+as ações de escrita ficam desabilitadas em vez de fingir que salvaram.
 
 ### Testes
 
@@ -61,6 +62,15 @@ npm test --workspace @pareo/api
 
 33 testes cobrindo o parser de OFX (SGML e XML), normalização de descrição,
 parsing de valor em pt-BR/en e deduplicação.
+
+```bash
+npm run typecheck        # api + web
+npm run build --workspace @pareo/web
+```
+
+O seed é **determinístico e idempotente**: rodar três vezes deixa as mesmas 48
+transações. Isso é testável na mão e vale como garantia de que reimportar não
+duplica.
 
 ---
 
@@ -80,11 +90,18 @@ parsing de valor em pt-BR/en e deduplicação.
 - Dashboard agregado em uma chamada
 - Criptografia de campo AES-256-GCM + blind index para busca
 
-**Frontend** (`apps/web`)
+**Frontend** (`apps/web`) — seis telas
 
-- Dashboard: saldo consolidado, KPIs com comparativo, fluxo de caixa (6 meses),
-  despesas por categoria, contas e cartões, metas, últimos lançamentos, análise
-  de IA
+| Rota | O que faz |
+|---|---|
+| `/login` | Entrar, criar conta, ou ver a demonstração com dados fictícios |
+| `/` | Painel: saldo consolidado, KPIs com comparativo, fluxo de caixa (6 meses), despesas por categoria, contas/cartões, metas e análise de IA |
+| `/transacoes` | Extrato consolidado com filtros, busca com debounce, paginação por cursor e **correção de categoria em linha** (que vira regra e reclassifica as irmãs) |
+| `/importar` | Drag & drop de OFX/CSV, resultado detalhado (importadas · duplicadas · a revisar · ignoradas) e histórico |
+| `/contas` | CRUD de contas e cartões. Número da conta cifrado; a tela só vê os 4 últimos dígitos |
+| `/metas` | CRUD de metas, registro de aporte por membro e simulador de quanto guardar por mês |
+
+- Sessão com refresh silencioso: F5 não desloga, e o access token nunca sai da memória
 - Tema claro/escuro/sistema, sem flash na primeira pintura
 - Paleta de gráficos validada para daltonismo (ΔE por par adjacente)
 
@@ -94,15 +111,20 @@ parsing de valor em pt-BR/en e deduplicação.
 
 Em ordem de valor:
 
-1. **Telas restantes** — login, importação (drag & drop), extrato com filtros,
-   CRUD de contas/cartões/metas. O backend já serve todas.
-2. **Fila (BullMQ)** para importação e IA — hoje é síncrono; acima de ~500
-   transações por arquivo o request fica longo demais.
-3. **MFA (TOTP)** — a coluna já existe no schema.
+1. **Fila (BullMQ)** para importação e IA — hoje é síncrono; acima de ~500
+   transações por arquivo o request fica longo demais e um timeout de proxy pode
+   cortá-lo no meio da categorização.
+2. **Convite do parceiro(a)** — a tabela `household_invites` e o modelo de
+   papéis existem; falta o envio de e-mail e a tela de aceite.
+3. **MFA (TOTP)** — a coluna `mfa_secret_enc` já existe no schema.
 4. **Exportação e exclusão de conta** — requisitos de LGPD ainda pendentes.
-5. **Open Finance (Pluggy/Belvo)** — substitui o upload manual; o modelo de
-   dados já comporta (`institution_code`, `balance_synced_at`).
-6. **App mobile (Expo)** — reaproveita `lib/api.ts` e os tipos.
+5. **Rateio de despesa na interface** — `transaction_splits` existe no banco e
+   é validado no service; falta a UI de "dividir esta conta".
+6. **Testes de integração da API** — hoje os 33 testes cobrem os parsers (a
+   parte pura). Os fluxos HTTP foram verificados manualmente, não em CI.
+7. **Open Finance (Pluggy/Belvo)** — substitui o upload manual; o modelo já
+   comporta (`institution_code`, `number_bidx`, `balance_synced_at`).
+8. **App mobile (Expo)** — reaproveita `lib/api.ts` e os tipos.
 
 ---
 

@@ -1,6 +1,22 @@
 'use client';
 
-import type { DashboardSummary, ImportResult, MonthlyInsights } from './types';
+import type {
+  Account,
+  AccountInput,
+  Card,
+  CardInput,
+  Category,
+  DashboardSummary,
+  Goal,
+  GoalInput,
+  Household,
+  ImportBatch,
+  ImportResult,
+  MonthlyInsights,
+  TransactionFilters,
+  TransactionInput,
+  TransactionPage,
+} from './types';
 
 /**
  * Cliente HTTP da API.
@@ -103,12 +119,40 @@ function refreshSession(): Promise<boolean> {
   return refreshPromise;
 }
 
+export interface AuthPayload {
+  accessToken: string;
+  user: { id: string; name: string; email: string };
+  household: { id: string; name: string; role: string };
+}
+
 export const api = {
+  /** Refresh silencioso do boot: usa só o cookie httpOnly, sem Authorization. */
+  refresh: async (): Promise<AuthPayload> => {
+    const response = await fetch(`${API_URL}/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    });
+    if (!response.ok) throw new ApiError(response.status, 'Sem sessão ativa.');
+    const data = (await response.json()) as AuthPayload;
+    accessToken = data.accessToken;
+    return data;
+  },
+
   login: (email: string, password: string) =>
-    request<{ accessToken: string; user: { id: string; name: string }; household: { id: string; name: string } }>(
-      '/auth/login',
-      { method: 'POST', body: JSON.stringify({ email, password }) },
-    ).then((result) => {
+    request<AuthPayload>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    }).then((result) => {
+      accessToken = result.accessToken;
+      return result;
+    }),
+
+  register: (input: { name: string; email: string; password: string; householdName?: string }) =>
+    request<AuthPayload>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }).then((result) => {
       accessToken = result.accessToken;
       return result;
     }),
@@ -137,6 +181,63 @@ export const api = {
       `/transactions/${transactionId}/category`,
       { method: 'PATCH', body: JSON.stringify({ categoryId, applyToSimilar }) },
     ),
+
+
+  getHousehold: () => request<Household>('/household'),
+
+  getAccounts: () => request<{ data: Account[] }>('/accounts').then((r) => r.data),
+  createAccount: (input: AccountInput) =>
+    request<Account>('/accounts', { method: 'POST', body: JSON.stringify(input) }),
+  updateAccount: (id: string, input: Partial<AccountInput>) =>
+    request<Account>(`/accounts/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  deleteAccount: (id: string) =>
+    request<{ deleted: boolean; archived: boolean; message?: string }>(`/accounts/${id}`, {
+      method: 'DELETE',
+    }),
+
+  getCards: () => request<{ data: Card[] }>('/cards').then((r) => r.data),
+  createCard: (input: CardInput) =>
+    request<Card>('/cards', { method: 'POST', body: JSON.stringify(input) }),
+  updateCard: (id: string, input: Partial<CardInput>) =>
+    request<Card>(`/cards/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  deleteCard: (id: string) =>
+    request<{ deleted: boolean; archived: boolean; message?: string }>(`/cards/${id}`, {
+      method: 'DELETE',
+    }),
+
+  getCategories: () => request<{ data: Category[] }>('/categories').then((r) => r.data),
+
+  getTransactions: (filters: TransactionFilters = {}) => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(filters)) {
+      if (value !== undefined && value !== '') params.set(key, String(value));
+    }
+    const query = params.toString();
+    return request<TransactionPage>(`/transactions${query ? `?${query}` : ''}`);
+  },
+  createTransaction: (input: TransactionInput) =>
+    request<{ id: string }>('/transactions', { method: 'POST', body: JSON.stringify(input) }),
+
+  getImports: () => request<{ data: ImportBatch[] }>('/imports').then((r) => r.data),
+  deleteImport: (id: string) =>
+    request<{ deleted: number; kept: number; message: string }>(`/imports/${id}`, {
+      method: 'DELETE',
+    }),
+
+  getGoals: () => request<{ data: Goal[] }>('/goals').then((r) => r.data),
+  createGoal: (input: GoalInput) =>
+    request<Goal>('/goals', { method: 'POST', body: JSON.stringify(input) }),
+  updateGoal: (id: string, input: Partial<GoalInput> & { status?: string }) =>
+    request<Goal>(`/goals/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  deleteGoal: (id: string) => request<{ deleted: boolean }>(`/goals/${id}`, { method: 'DELETE' }),
+  addContribution: (
+    goalId: string,
+    input: { amountCents: number; contributedAt?: string; note?: string; userId?: string },
+  ) =>
+    request<{ id: string; currentAmountCents: number }>(`/goals/${goalId}/contributions`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
 
   simulateGoal: (
     goalId: string,

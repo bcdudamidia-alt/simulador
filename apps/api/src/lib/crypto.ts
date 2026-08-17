@@ -35,7 +35,14 @@ const TAG_BYTES = 16;
 const key = Buffer.from(env.ENCRYPTION_KEY, 'hex');
 const indexKey = Buffer.from(env.BLIND_INDEX_KEY, 'hex');
 
-export function encrypt(plaintext: string | null | undefined): Buffer | null {
+/**
+ * Devolve `Uint8Array` e não `Buffer` porque é isso que o Prisma espera em
+ * coluna `Bytes`. `Buffer` é `Uint8Array<ArrayBufferLike>` (o buffer subjacente
+ * pode ser um `SharedArrayBuffer`), e o Prisma exige `Uint8Array<ArrayBuffer>`.
+ * A cópia via construtor resolve isso e ainda desatrela o resultado do pool
+ * interno do Node.
+ */
+export function encrypt(plaintext: string | null | undefined): Uint8Array<ArrayBuffer> | null {
   if (plaintext == null || plaintext === '') return null;
 
   const iv = randomBytes(IV_BYTES);
@@ -43,7 +50,7 @@ export function encrypt(plaintext: string | null | undefined): Buffer | null {
   const ciphertext = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
   const tag = cipher.getAuthTag();
 
-  return Buffer.concat([Buffer.from([KEY_VERSION]), iv, tag, ciphertext]);
+  return new Uint8Array(Buffer.concat([Buffer.from([KEY_VERSION]), iv, tag, ciphertext]));
 }
 
 export function decrypt(blob: Buffer | Uint8Array | null | undefined): string | null {
@@ -80,10 +87,10 @@ export function decrypt(blob: Buffer | Uint8Array | null | undefined): string | 
  * seria aceitável para algo como CPF em base grande, onde o dicionário é
  * enumerável — nesse caso o certo é HMAC truncado + bucket.
  */
-export function blindIndex(value: string | null | undefined): Buffer | null {
+export function blindIndex(value: string | null | undefined): Uint8Array<ArrayBuffer> | null {
   if (value == null || value === '') return null;
   const normalized = value.replace(/[^0-9a-zA-Z]/g, '').toUpperCase();
-  return createHmac('sha256', indexKey).update(normalized).digest();
+  return new Uint8Array(createHmac('sha256', indexKey).update(normalized).digest());
 }
 
 /** Hash de token opaco (refresh, convite). Barato de propósito: o token já tem 256 bits de entropia. */

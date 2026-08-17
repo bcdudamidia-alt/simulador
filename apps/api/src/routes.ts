@@ -7,10 +7,12 @@ import { aiLimiter } from './middlewares/rate-limit.js';
 import { asyncHandler, validate } from './middlewares/validate.js';
 import { learnFromCorrection } from './modules/ai/categorizer.service.js';
 import { generateMonthlyInsights } from './modules/ai/insights.service.js';
+import { accountsRouter, cardsRouter } from './modules/accounts/accounts.routes.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { getDashboard } from './modules/dashboard/dashboard.service.js';
 import { addContribution, getGoalProgress, simulateGoal } from './modules/goals/goals.service.js';
 import { importsRouter } from './modules/imports/imports.routes.js';
+import { buildDedupeHash, normalizeDescription } from './modules/imports/normalize.js';
 
 export const apiRouter: Router = Router();
 
@@ -22,6 +24,8 @@ protectedRouter.use(authenticate, withHousehold);
 apiRouter.use(protectedRouter);
 
 protectedRouter.use('/imports', importsRouter);
+protectedRouter.use('/accounts', accountsRouter);
+protectedRouter.use('/cards', cardsRouter);
 
 // ─────────────────────────────── dashboard ───────────────────────────────
 
@@ -37,62 +41,30 @@ protectedRouter.get(
   }),
 );
 
-// ────────────────────────────── contas e cartões ──────────────────────────────
+// ─────────────────────────────── household ───────────────────────────────
 
+/** Membros do casal — alimenta os seletores de "de quem é" na interface. */
 protectedRouter.get(
-  '/accounts',
+  '/household',
   asyncHandler(async (req, res) => {
-    const accounts = await prisma.account.findMany({
-      where: { householdId: req.auth!.householdId, isArchived: false },
-      orderBy: { name: 'asc' },
-      // `select` explícito: number_enc jamais deve sair da API sem decisão
-      // deliberada. `include` traria a coluna cifrada para o JSON sem querer.
+    const household = await prisma.household.findUniqueOrThrow({
+      where: { id: req.auth!.householdId },
       select: {
         id: true,
         name: true,
-        type: true,
-        color: true,
-        icon: true,
-        institutionName: true,
-        currentBalanceCents: true,
-        balanceSyncedAt: true,
-        ownerUserId: true,
-        owner: { select: { id: true, name: true } },
-      },
-    });
-    res.json({ data: accounts });
-  }),
-);
-
-protectedRouter.get(
-  '/cards',
-  asyncHandler(async (req, res) => {
-    const cards = await prisma.creditCard.findMany({
-      where: { householdId: req.auth!.householdId, isArchived: false },
-      orderBy: { name: 'asc' },
-      select: {
-        id: true,
-        name: true,
-        brand: true,
-        color: true,
-        creditLimitCents: true,
-        closingDay: true,
-        dueDay: true,
-        owner: { select: { id: true, name: true } },
-        statements: {
-          orderBy: { referenceMonth: 'desc' },
-          take: 3,
+        currency: true,
+        timezone: true,
+        members: {
+          orderBy: { joinedAt: 'asc' },
           select: {
-            id: true,
-            referenceMonth: true,
-            dueDate: true,
-            totalAmountCents: true,
-            status: true,
+            role: true,
+            joinedAt: true,
+            user: { select: { id: true, name: true, email: true, avatarUrl: true } },
           },
         },
       },
     });
-    res.json({ data: cards });
+    res.json(household);
   }),
 );
 
@@ -165,6 +137,110 @@ protectedRouter.get(
       data,
       pagination: { hasMore, nextCursor: hasMore ? data[data.length - 1]?.id : null },
     });
+  }),
+);
+
+
+/**
+ * POST /transactions — lançamento manual.
+ *
+ * Existe porque nem todo dinheiro passa por extrato: dinheiro vivo, a
+ * vaquinha do churrasco, o empréstimo para o irmão. Sem isso o saldo do app
+ * diverge do saldo real e o casal para de confiar no número.
+ */
+protectedRouter.post(
+  '/transactions',
+  requireWriteAccess,
+  validate({
+    body: z
+      .object({
+        accountId: z.string().uuid().optional(),
+        creditCardId: z.string().uuid().optional(),
+        categoryId: z.string().uuid().optional(),
+        /** Negativo = saída, positivo = entrada. Zero é rejeitado. */
+        amountCents: z.number().int().refine((v) => v !== 0, 'O valor não pode ser zero.'),
+        description: z.string().min(1).max(500),
+        postedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        notes: z.string().max(1000).optional(),
+        sharing: z.enum(['shared', 'personal']).default('shared'),
+        paidByUserId: z.string().uuid().optional(),
+      })
+      .refine((v) => Boolean(v.accountId) !== Boolean(v.creditCardId), {
+        message: 'Informe exatamente uma origem: accountId OU creditCardId.',
+      }),
+  }),
+  asyncHandler(async (req, res) => {
+    const householdId = req.auth!.householdId;
+    const body = req.body as {
+      accountId?: string;
+      creditCardId?: string;
+      categoryId?: string;
+      amountCents: number;
+      description: string;
+      postedAt: string;
+      notes?: string;
+      sharing: 'shared' | 'personal';
+      paidByUserId?: string;
+    };
+
+    // A origem precisa ser deste household — mesma checagem que a importação faz.
+    const origin = body.accountId
+      ? await prisma.account.findFirst({
+          where: { id: body.accountId, householdId },
+          select: { id: true },
+        })
+      : await prisma.creditCard.findFirst({
+          where: { id: body.creditCardId, householdId },
+          select: { id: true },
+        });
+    if (!origin) throw notFound('Conta ou cartão não encontrado neste household.');
+
+    if (body.categoryId) {
+      const category = await prisma.category.findFirst({
+        where: { id: body.categoryId, householdId },
+        select: { id: true },
+      });
+      if (!category) throw notFound('Categoria não encontrada.');
+    }
+
+    const postedAt = new Date(`${body.postedAt}T00:00:00Z`);
+    const normalized = normalizeDescription(body.description);
+    const amount = BigInt(body.amountCents);
+
+    // Lançamento manual não tem FITID, então o dedupe cai no hash. O timestamp
+    // no `occurrence` garante que o casal consiga lançar dois cafés iguais no
+    // mesmo dia sem esbarrar no índice único.
+    const transaction = await prisma.transaction.create({
+      data: {
+        householdId,
+        accountId: body.accountId ?? null,
+        creditCardId: body.creditCardId ?? null,
+        categoryId: body.categoryId ?? null,
+        postedAt,
+        competenceDate: postedAt,
+        amountCents: amount,
+        description: body.description,
+        normalizedDescription: normalized,
+        notes: body.notes ?? null,
+        type: amount < 0n ? 'expense' : 'income',
+        status: 'posted',
+        sharing: body.sharing,
+        paidByUserId: body.paidByUserId ?? req.auth!.userId,
+        categorySource: body.categoryId ? 'user' : null,
+        categoryConfidence: body.categoryId ? 1 : null,
+        needsReview: !body.categoryId,
+        dedupeHash: buildDedupeHash({
+          originId: origin.id,
+          postedAt: body.postedAt,
+          amountCents: amount,
+          normalizedDescription: normalized,
+          occurrence: Date.now(),
+        }),
+      },
+      select: { id: true, description: true, amountCents: true, postedAt: true },
+    });
+
+    res.status(201).json(transaction);
   }),
 );
 
@@ -298,6 +374,85 @@ protectedRouter.post(
         transactionId: req.body.transactionId,
       }),
     );
+  }),
+);
+
+protectedRouter.patch(
+  '/goals/:id',
+  requireWriteAccess,
+  validate({
+    params: z.object({ id: z.string().uuid() }),
+    body: z.object({
+      name: z.string().min(2).max(120).optional(),
+      description: z.string().max(500).nullable().optional(),
+      targetAmountCents: z.number().int().positive().optional(),
+      targetDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+      monthlyTargetCents: z.number().int().positive().nullable().optional(),
+      priority: z.number().int().min(1).max(10).optional(),
+      status: z.enum(['active', 'paused', 'achieved', 'cancelled']).optional(),
+      color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+      icon: z.string().max(40).optional(),
+    }),
+  }),
+  asyncHandler(async (req, res) => {
+    const householdId = req.auth!.householdId;
+    const existing = await prisma.goal.findFirst({
+      where: { id: req.params.id, householdId },
+      select: { id: true },
+    });
+    if (!existing) throw notFound('Meta não encontrada.');
+
+    const b = req.body;
+    await prisma.goal.update({
+      where: { id: existing.id },
+      data: {
+        ...(b.name !== undefined ? { name: b.name } : {}),
+        ...(b.description !== undefined ? { description: b.description } : {}),
+        ...(b.targetAmountCents !== undefined
+          ? { targetAmountCents: BigInt(b.targetAmountCents) }
+          : {}),
+        ...(b.targetDate !== undefined
+          ? { targetDate: b.targetDate ? new Date(b.targetDate) : null }
+          : {}),
+        ...(b.monthlyTargetCents !== undefined
+          ? {
+              monthlyTargetCents:
+                b.monthlyTargetCents === null ? null : BigInt(b.monthlyTargetCents),
+            }
+          : {}),
+        ...(b.priority !== undefined ? { priority: b.priority } : {}),
+        ...(b.status !== undefined ? { status: b.status } : {}),
+        ...(b.color !== undefined ? { color: b.color } : {}),
+        ...(b.icon !== undefined ? { icon: b.icon } : {}),
+      },
+    });
+
+    const [progress] = await getGoalProgress(householdId, existing.id);
+    res.json(progress);
+  }),
+);
+
+/**
+ * DELETE /goals/:id — apaga de verdade, junto com os aportes.
+ *
+ * Diferente de conta: um aporte é um registro do plano, não do extrato. O
+ * dinheiro em si continua na conta e nas transações; apagar a meta desfaz o
+ * planejamento, não o histórico financeiro. Para só tirar do painel sem perder
+ * os aportes, o caminho é `PATCH { status: 'cancelled' }`.
+ */
+protectedRouter.delete(
+  '/goals/:id',
+  requireWriteAccess,
+  validate({ params: z.object({ id: z.string().uuid() }) }),
+  asyncHandler(async (req, res) => {
+    const goal = await prisma.goal.findFirst({
+      where: { id: req.params.id, householdId: req.auth!.householdId },
+      select: { id: true, _count: { select: { contributions: true } } },
+    });
+    if (!goal) throw notFound('Meta não encontrada.');
+
+    await prisma.goal.delete({ where: { id: goal.id } });
+    res.json({ deleted: true, contributionsRemoved: goal._count.contributions });
   }),
 );
 

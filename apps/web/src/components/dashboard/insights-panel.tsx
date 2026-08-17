@@ -23,9 +23,12 @@ const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' 
 export function InsightsPanel({
   month,
   initial,
+  disabled = false,
 }: {
   month: string;
   initial?: MonthlyInsights;
+  /** Em demonstração não há dado real para analisar — e a chamada é paga. */
+  disabled?: boolean;
 }) {
   const [insights, setInsights] = useState<MonthlyInsights | undefined>(initial);
   const [loading, setLoading] = useState(false);
@@ -53,7 +56,8 @@ export function InsightsPanel({
           <button
             type="button"
             onClick={generate}
-            disabled={loading}
+            disabled={loading || disabled}
+            title={disabled ? 'Disponível depois de entrar com sua conta.' : undefined}
             className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {loading ? 'Analisando…' : insights ? 'Atualizar' : 'Gerar análise'}
@@ -69,8 +73,9 @@ export function InsightsPanel({
 
       {!insights && !error ? (
         <p className="text-sm text-ink-secondary">
-          Gere uma leitura do mês fechado: o que mudou, onde está a gordura e quanto isso
-          antecipa (ou atrasa) as metas de vocês.
+          {disabled
+            ? 'Entre com sua conta para gerar a leitura do mês.'
+            : 'Gere uma leitura do mês fechado: o que mudou, onde está a gordura e quanto isso antecipa (ou atrasa) as metas de vocês.'}
         </p>
       ) : null}
 

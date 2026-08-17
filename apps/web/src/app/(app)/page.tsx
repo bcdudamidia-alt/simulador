@@ -1,18 +1,18 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { AccountsPanel } from '../components/dashboard/accounts-panel';
-import { CashFlowChart } from '../components/dashboard/cash-flow-chart';
-import { CategoryBreakdown } from '../components/dashboard/category-breakdown';
-import { GoalsPanel } from '../components/dashboard/goals-panel';
-import { InsightsPanel } from '../components/dashboard/insights-panel';
-import { KpiRow } from '../components/dashboard/kpi-row';
-import { RecentTransactions } from '../components/dashboard/recent-transactions';
-import { ThemeToggle } from '../components/theme-toggle';
-import { api, ApiError } from '../lib/api';
-import { DEMO_DASHBOARD } from '../lib/demo-data';
-import { formatMonthLong } from '../lib/format';
-import type { DashboardSummary } from '../lib/types';
+import { AccountsPanel } from '../../components/dashboard/accounts-panel';
+import { CashFlowChart } from '../../components/dashboard/cash-flow-chart';
+import { CategoryBreakdown } from '../../components/dashboard/category-breakdown';
+import { GoalsPanel } from '../../components/dashboard/goals-panel';
+import { InsightsPanel } from '../../components/dashboard/insights-panel';
+import { KpiRow } from '../../components/dashboard/kpi-row';
+import { RecentTransactions } from '../../components/dashboard/recent-transactions';
+import { api } from '../../lib/api';
+import { DEMO_DASHBOARD } from '../../lib/demo-data';
+import { formatMonthLong } from '../../lib/format';
+import { useSession } from '../../lib/session';
+import type { DashboardSummary } from '../../lib/types';
 
 /**
  * Dashboard — a tela principal do Pareo.
@@ -31,26 +31,27 @@ import type { DashboardSummary } from '../lib/types';
  * houver BFF (v1.1), esta página vira RSC e o fetch sai daqui.
  */
 export default function DashboardPage() {
+  const { status } = useSession();
   const [data, setData] = useState<DashboardSummary | null>(null);
   const [month, setMonth] = useState<string>(() => new Date().toISOString().slice(0, 7));
-  const [state, setState] = useState<'loading' | 'ready' | 'demo' | 'error'>('loading');
+  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(
-    async (reference: string) => {
+    async (reference: string, demo: boolean) => {
+      // Em demonstração nem chegamos a chamar a API: sem sessão ela devolveria
+      // 401 e o usuário veria um erro em vez de um produto.
+      if (demo) {
+        setData(DEMO_DASHBOARD);
+        setState('ready');
+        return;
+      }
+
       setState('loading');
       try {
         setData(await api.getDashboard(reference));
         setState('ready');
       } catch (err) {
-        // 401 sem sessão: mostramos o modo demonstração em vez de uma tela
-        // vazia. Um dashboard financeiro em branco não comunica nada sobre o
-        // que o produto faz.
-        if (err instanceof ApiError && err.status === 401) {
-          setData(DEMO_DASHBOARD);
-          setState('demo');
-          return;
-        }
         setError(err instanceof Error ? err.message : 'Erro ao carregar o painel.');
         setState('error');
       }
@@ -59,8 +60,9 @@ export default function DashboardPage() {
   );
 
   useEffect(() => {
-    void load(month);
-  }, [load, month]);
+    if (status === 'loading' || status === 'unauthenticated') return;
+    void load(month, status === 'demo');
+  }, [load, month, status]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
@@ -72,27 +74,15 @@ export default function DashboardPage() {
           <p className="text-sm text-ink-muted">{formatMonthLong(month)}</p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <MonthPicker value={month} onChange={setMonth} />
-          <ThemeToggle />
-        </div>
+        <MonthPicker value={month} onChange={setMonth} />
       </header>
-
-      {state === 'demo' ? (
-        <p className="mb-5 rounded-lg border border-[var(--status-warning)] px-4 py-2.5 text-sm text-ink-secondary">
-          <strong className="font-medium text-[var(--status-warning)]">
-            Modo demonstração.
-          </strong>{' '}
-          Estes números são fictícios — a API não está conectada ou a sessão expirou.
-        </p>
-      ) : null}
 
       {state === 'error' ? (
         <div className="rounded-xl border border-[var(--status-critical)] p-6">
           <p className="text-sm font-medium text-[var(--status-critical)]">{error}</p>
           <button
             type="button"
-            onClick={() => void load(month)}
+            onClick={() => void load(month, status === 'demo')}
             className="mt-3 rounded-md border border-[var(--hairline)] px-3 py-1.5 text-xs font-medium text-ink-secondary"
           >
             Tentar novamente
@@ -119,7 +109,7 @@ export default function DashboardPage() {
             <div className="space-y-4">
               <AccountsPanel accounts={data.accounts} cards={data.cards} />
               <GoalsPanel goals={data.goals} />
-              <InsightsPanel month={month} />
+              <InsightsPanel month={month} disabled={status === 'demo'} />
             </div>
           </div>
         </div>

@@ -162,10 +162,15 @@ export async function getDashboard(
 
     getGoalProgress(householdId),
 
-    prisma.transaction.count({ where: { householdId, needsReview: true } }),
+    prisma.transaction.count({
+      where: { householdId, needsReview: true, competenceDate: { gte: month, lt: monthEnd } },
+    }),
 
+    // Escopado pelo mês de referência, como todo o resto do painel. Uma lista
+    // "recente" que ignora o seletor de mês faz a visão de agosto exibir
+    // lançamento de setembro — e o casal deixa de confiar no que está vendo.
     prisma.transaction.findMany({
-      where: { householdId },
+      where: { householdId, competenceDate: { gte: month, lt: monthEnd } },
       orderBy: [{ postedAt: 'desc' }, { createdAt: 'desc' }],
       take: 8,
       select: {

@@ -57,7 +57,20 @@ export function CashFlowChart({ data }: { data: CashFlowPoint[] }) {
 
       <div className="h-64 w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={series} margin={{ top: 8, right: 8, bottom: 0, left: 8 }} barGap={2}>
+          {/*
+            `barSize` explícito em vez de `maxBarSize`: o Recharts calcula as
+            posições com a largura natural da banda e só DEPOIS corta a largura
+            pelo `maxBarSize` — o resultado é um par de barras separado por
+            dezenas de pixels, que o olho lê como seis barras soltas em vez de
+            três pares. Com `barSize`, o `barGap` de 2px é respeitado e as duas
+            séries de cada mês ficam coladas, separadas só pelo vão da superfície.
+          */}
+          <BarChart
+            data={series}
+            margin={{ top: 8, right: 8, bottom: 0, left: 8 }}
+            barSize={18}
+            barGap={2}
+          >
             <CartesianGrid
               vertical={false}
               stroke="var(--gridline)"
@@ -82,8 +95,8 @@ export function CashFlowChart({ data }: { data: CashFlowPoint[] }) {
               content={<CashFlowTooltip />}
             />
             {/* radius: canto arredondado só no topo — a base fica quadrada na linha zero */}
-            <Bar dataKey="entradas" fill="var(--series-1)" radius={[4, 4, 0, 0]} maxBarSize={24} />
-            <Bar dataKey="saidas" fill="var(--series-2)" radius={[4, 4, 0, 0]} maxBarSize={24} />
+            <Bar dataKey="entradas" fill="var(--series-1)" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="saidas" fill="var(--series-2)" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
